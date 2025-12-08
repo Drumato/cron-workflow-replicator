@@ -6,10 +6,10 @@ COPY ./go.sum ./
 RUN go mod download
 
 COPY ./main.go ./
-COPY ./bot.go ./
-COPY ./help_handler.go ./
-COPY ./hello_handler.go ./
-COPY ./message_router.go  ./
+COPY ./cmd ./cmd
+COPY ./config ./config
+COPY ./runner ./runner
+COPY ./structopt ./structopt
 RUN CGO_ENABLED=0 go build -o /cron-workflow-replicator .
 
 FROM scratch
