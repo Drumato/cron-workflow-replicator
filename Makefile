@@ -1,5 +1,5 @@
 .PHONY: all
-all: format build test
+all: format build test lint
 
 .PHONY: format
 format:
@@ -29,3 +29,8 @@ example:
 	else \
 		echo "Warning: No output directory found"; \
 	fi
+
+.PHONY: lint
+lint:
+	@which golangci-lint > /dev/null || (curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b tools v2.7.2)
+	./tools/golangci-lint run

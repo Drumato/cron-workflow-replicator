@@ -17,8 +17,8 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name              string
-		unit              config.Unit
+		name               string
+		unit               config.Unit
 		expectedAPIVersion string
 		expectedKind       string
 	}{
@@ -102,7 +102,10 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 			}
 
 			// Clean up the test file
-			os.Remove(outputFile)
+			err = os.Remove(outputFile)
+			if err != nil {
+				t.Fatalf("Failed to remove test output file: %v", err)
+			}
 		})
 	}
 }
