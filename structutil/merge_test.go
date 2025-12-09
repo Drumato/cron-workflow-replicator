@@ -1,23 +1,24 @@
-package structopt
+package structutil
 
 import (
 	"reflect"
 	"testing"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Test structs for basic functionality
 type TestStruct struct {
-	Name        string
-	Age         int
-	Active      bool
-	Score       float64
-	Tags        []string
-	Labels      map[string]string
+	Name         string
+	Age          int
+	Active       bool
+	Score        float64
+	Tags         []string
+	Labels       map[string]string
 	NestedStruct NestedStruct
-	Pointer     *string
+	Pointer      *string
 }
 
 type NestedStruct struct {
@@ -87,9 +88,7 @@ func TestMergeStruct_BasicFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			MergeStruct(&tt.dst, &tt.src)
-			if !reflect.DeepEqual(tt.dst, tt.expected) {
-				t.Errorf("MergeStruct() = %+v, expected %+v", tt.dst, tt.expected)
-			}
+			assert.Equal(t, tt.expected, tt.dst)
 		})
 	}
 }
@@ -141,7 +140,7 @@ func TestMergeStruct_SlicesAndMaps(t *testing.T) {
 				},
 			},
 			src: TestStruct{
-				Tags:   []string{}, // empty slice should be ignored
+				Tags:   []string{},          // empty slice should be ignored
 				Labels: map[string]string{}, // empty map should be ignored
 			},
 			expected: TestStruct{
@@ -156,9 +155,7 @@ func TestMergeStruct_SlicesAndMaps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			MergeStruct(&tt.dst, &tt.src)
-			if !reflect.DeepEqual(tt.dst, tt.expected) {
-				t.Errorf("MergeStruct() = %+v, expected %+v", tt.dst, tt.expected)
-			}
+			assert.Equal(t, tt.expected, tt.dst)
 		})
 	}
 }
@@ -194,9 +191,7 @@ func TestMergeStruct_NestedStructs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			MergeStruct(&tt.dst, &tt.src)
-			if !reflect.DeepEqual(tt.dst, tt.expected) {
-				t.Errorf("MergeStruct() = %+v, expected %+v", tt.dst, tt.expected)
-			}
+			assert.Equal(t, tt.expected, tt.dst)
 		})
 	}
 }
@@ -250,12 +245,11 @@ func TestMergeStruct_Pointers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			MergeStruct(&tt.dst, &tt.src)
-			if tt.expected.Pointer == nil && tt.dst.Pointer != nil {
-				t.Errorf("Expected nil pointer, got %v", *tt.dst.Pointer)
-			} else if tt.expected.Pointer != nil && tt.dst.Pointer == nil {
-				t.Errorf("Expected pointer to %v, got nil", *tt.expected.Pointer)
-			} else if tt.expected.Pointer != nil && tt.dst.Pointer != nil && *tt.expected.Pointer != *tt.dst.Pointer {
-				t.Errorf("Expected pointer to %v, got %v", *tt.expected.Pointer, *tt.dst.Pointer)
+			if tt.expected.Pointer == nil {
+				assert.Nil(t, tt.dst.Pointer)
+			} else {
+				assert.NotNil(t, tt.dst.Pointer)
+				assert.Equal(t, *tt.expected.Pointer, *tt.dst.Pointer)
 			}
 		})
 	}
@@ -316,9 +310,7 @@ func TestMergeStruct_CronWorkflow(t *testing.T) {
 			// Merge spec
 			MergeStruct(&tt.dst.Spec, &tt.srcSpec)
 
-			if !reflect.DeepEqual(tt.dst, tt.expected) {
-				t.Errorf("MergeStruct() = %+v, expected %+v", tt.dst, tt.expected)
-			}
+			assert.Equal(t, tt.expected, tt.dst)
 		})
 	}
 }
@@ -338,9 +330,7 @@ func TestMergeStruct_NilInputs(t *testing.T) {
 	MergeStruct(dst, src2)
 
 	// dst should be unchanged
-	if dst.Name != "existing" {
-		t.Errorf("Expected dst to be unchanged, got %+v", dst)
-	}
+	assert.Equal(t, "existing", dst.Name)
 }
 
 func TestIsZeroValue(t *testing.T) {
@@ -369,9 +359,7 @@ func TestIsZeroValue(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			v := reflect.ValueOf(tt.value)
 			result := isZeroValue(v)
-			if result != tt.expected {
-				t.Errorf("isZeroValue(%v) = %v, expected %v", tt.value, result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

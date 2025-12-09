@@ -7,20 +7,41 @@ import (
 	"os"
 	"path/filepath"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
-	"github.com/drumato/cron-workflow-replicator/structopt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/drumato/cron-workflow-replicator/filesystem"
+	"github.com/drumato/cron-workflow-replicator/structutil"
 	kyaml "sigs.k8s.io/yaml"
 )
 
 type Runner struct {
-	logger *slog.Logger
+	logger      *slog.Logger
+	fsConnector filesystem.FileSystem
+	fileReader  config.FileReader
 }
 
-func New(logger *slog.Logger) *Runner {
-	return &Runner{
-		logger: logger,
+type RunnerOption func(*Runner)
+
+func New(logger *slog.Logger, opts ...RunnerOption) *Runner {
+	r := Runner{
+		logger:      logger,
+		fsConnector: filesystem.NewDefaultFileSystem(),
+		fileReader:  &config.DefaultFileReader{},
+	}
+	for _, opt := range opts {
+		opt(&r)
+	}
+	return &r
+}
+
+func WithFileSystem(fs filesystem.FileSystem) RunnerOption {
+	return func(r *Runner) {
+		r.fsConnector = fs
+	}
+}
+
+func WithFileReader(fr config.FileReader) RunnerOption {
+	return func(r *Runner) {
+		r.fileReader = fr
 	}
 }
 
@@ -38,11 +59,17 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) error {
 }
 
 func (r *Runner) processUnit(ctx context.Context, unit config.Unit) error {
+	// Load base CronWorkflow from manifest if provided
+	baseCronWorkflow, err := unit.LoadBaseCronWorkflow(r.fileReader)
+	if err != nil {
+		return fmt.Errorf("failed to load base CronWorkflow: %w", err)
+	}
+
 	sameFilenameCounter := map[string]int{}
 	for _, value := range unit.Values {
 		r.logger.DebugContext(ctx, "Processing value", slog.String("filename", value.Filename))
 
-		if err := os.MkdirAll(unit.OutputDirectory, 0o755); err != nil {
+		if err := r.fsConnector.MkdirAll(unit.OutputDirectory, 0o755); err != nil {
 			return fmt.Errorf("failed to create output directory %s: %w", unit.OutputDirectory, err)
 		}
 
@@ -55,23 +82,19 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit) error {
 		outputYAMLPath := filepath.Join(unit.OutputDirectory, filename)
 		r.logger.DebugContext(ctx, "Generating output file", slog.String("outputYAMLPath", outputYAMLPath))
 
-		f, err := os.OpenFile(outputYAMLPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		f, err := r.fsConnector.OpenFile(outputYAMLPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %s: %w", outputYAMLPath, err)
 		}
 
-		cw := argoworkflowsv1alpha1.CronWorkflow{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: unit.APIVersion.GetSchemeGroupVersion(),
-				Kind:       unit.APIVersion.GetKind(),
-			},
-		}
+		// Start with the base CronWorkflow (deep copy to avoid modifying the original)
+		cw := *baseCronWorkflow
 
 		// Merge metadata from the value
-		structopt.MergeStruct(&cw.ObjectMeta, &value.Metadata)
+		structutil.MergeStruct(&cw.ObjectMeta, &value.Metadata)
 
 		// Merge spec from the value
-		structopt.MergeStruct(&cw.Spec, &value.Spec)
+		structutil.MergeStruct(&cw.Spec, &value.Spec)
 
 		out, err := kyaml.Marshal(cw)
 		if err != nil {

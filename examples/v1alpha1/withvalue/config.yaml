@@ -1,0 +1,48 @@
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    values:
+      - filename: "daily-backup"
+        metadata:
+          name: "daily-backup-cronworkflow"
+          namespace: "backup"
+          labels:
+            app: "backup-system"
+            environment: "production"
+            schedule-type: "daily"
+        spec:
+          schedule: "0 2 * * *"  # Daily at 2 AM
+          workflowSpec:
+            entrypoint: "backup-workflow"
+            templates:
+              - name: "backup-workflow"
+                steps:
+                  - - name: "run-backup"
+                      template: "backup-template"
+              - name: "backup-template"
+                container:
+                  image: "backup-tool:latest"
+                  command: ["sh", "-c"]
+                  args: ["echo 'Running backup...'"]
+      - filename: "weekly-cleanup"
+        metadata:
+          name: "weekly-cleanup-cronworkflow"
+          namespace: "maintenance"
+          labels:
+            app: "cleanup-system"
+            environment: "production"
+            schedule-type: "weekly"
+        spec:
+          schedule: "0 3 * * 0"  # Weekly on Sunday at 3 AM
+          workflowSpec:
+            entrypoint: "cleanup-workflow"
+            templates:
+              - name: "cleanup-workflow"
+                steps:
+                  - - name: "run-cleanup"
+                      template: "cleanup-template"
+              - name: "cleanup-template"
+                container:
+                  image: "cleanup-tool:latest"
+                  command: ["sh", "-c"]
+                  args: ["echo 'Running cleanup...'"]

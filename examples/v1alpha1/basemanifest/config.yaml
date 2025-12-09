@@ -1,0 +1,64 @@
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    baseManifestPath: "./base-manifest.yaml"
+    values:
+      # Daily ETL job for user data
+      - filename: "user-data-etl"
+        metadata:
+          name: "user-data-etl-pipeline"
+          namespace: "production"
+          labels:
+            environment: "prod"
+            data-type: "user"
+            priority: "high"
+        spec:
+          schedule: "0 2 * * *"  # Override: Daily at 2 AM
+          workflowSpec:
+            arguments:
+              parameters:
+              - name: "source-table"
+                value: "users"
+              - name: "target-bucket"
+                value: "s3://prod-user-data"
+
+      # Weekly analytics aggregation
+      - filename: "weekly-analytics"
+        metadata:
+          name: "weekly-analytics-pipeline"
+          namespace: "analytics"
+          labels:
+            environment: "prod"
+            data-type: "analytics"
+            priority: "medium"
+        spec:
+          schedule: "0 4 * * 1"  # Override: Weekly on Monday at 4 AM
+          workflowSpec:
+            arguments:
+              parameters:
+              - name: "source-table"
+                value: "events"
+              - name: "target-bucket"
+                value: "s3://analytics-warehouse"
+              - name: "aggregation-window"
+                value: "7d"
+
+      # Development environment job (suspended by default)
+      - filename: "dev-data-sync"
+        metadata:
+          name: "dev-data-sync-pipeline"
+          namespace: "development"
+          labels:
+            environment: "dev"
+            data-type: "sync"
+            priority: "low"
+        spec:
+          schedule: "0 6 * * *"  # Override: Daily at 6 AM
+          suspend: true  # Override: Suspend in dev
+          workflowSpec:
+            arguments:
+              parameters:
+              - name: "source-table"
+                value: "dev_sample"
+              - name: "target-bucket"
+                value: "s3://dev-data-sync"

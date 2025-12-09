@@ -1,4 +1,4 @@
-package structopt
+package structutil
 
 import (
 	"reflect"

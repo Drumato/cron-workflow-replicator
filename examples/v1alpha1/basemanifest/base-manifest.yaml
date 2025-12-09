@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: base-data-processing
+  namespace: data-pipeline
+  labels:
+    app: data-processor
+    team: data-engineering
+    version: "1.0"
+spec:
+  schedule: "0 1 * * *"  # Default: Daily at 1 AM
+  timezone: "UTC"
+  suspend: false
+  workflowSpec:
+    entrypoint: data-processing-pipeline
+    templates:
+    - name: data-processing-pipeline
+      steps:
+      - - name: validate-data
+          template: validation-step
+      - - name: process-data
+          template: processing-step
+      - - name: cleanup
+          template: cleanup-step
+    - name: validation-step
+      container:
+        image: data-validator:1.0
+        command: ["python"]
+        args: ["/app/validate.py"]
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+    - name: processing-step
+      container:
+        image: data-processor:1.0
+        command: ["python"]
+        args: ["/app/process.py"]
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+    - name: cleanup-step
+      container:
+        image: alpine:latest
+        command: ["sh"]
+        args: ["-c", "echo 'Cleaning up temporary files...'"]

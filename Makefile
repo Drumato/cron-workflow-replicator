@@ -14,7 +14,7 @@ test:
 	go test ./...
 
 .PHONY: example
-example:
+example: build
 	@if [ -z "$(NAME)" ]; then \
 		echo "Error: NAME is required. Usage: NAME=v1alpha1/novalue make example"; \
 		exit 1; \

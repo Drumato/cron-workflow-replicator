@@ -10,7 +10,6 @@
 ### When you add a new feature or fix a bug
 
 1. add `examples/<version>/<feature-or-bug>/config.yaml` to demonstrate the feature or bug fix
-2. add test cases in `test/<version>/<feature-or-bug>/` to cover the feature or bug fix
 3. run `NAME=<example> make example` to generate expected output files for the example
 4. run `make test` to make sure all tests pass
 5. commit your changes with a descriptive message

@@ -2,6 +2,8 @@ package config
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAPIVersion_GetSchemeGroupVersion(t *testing.T) {
@@ -30,9 +32,7 @@ func TestAPIVersion_GetSchemeGroupVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.apiVersion.GetSchemeGroupVersion()
-			if result != tt.expected {
-				t.Errorf("GetSchemeGroupVersion() = %v, expected %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -63,9 +63,7 @@ func TestAPIVersion_GetKind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.apiVersion.GetKind()
-			if result != tt.expected {
-				t.Errorf("GetKind() = %v, expected %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

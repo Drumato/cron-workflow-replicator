@@ -9,7 +9,7 @@ COPY ./main.go ./
 COPY ./cmd ./cmd
 COPY ./config ./config
 COPY ./runner ./runner
-COPY ./structopt ./structopt
+COPY ./structutil ./structutil
 RUN CGO_ENABLED=0 go build -o /cron-workflow-replicator .
 
 FROM scratch

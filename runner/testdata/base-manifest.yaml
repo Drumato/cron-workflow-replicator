@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: base-cronworkflow
+  namespace: default
+  labels:
+    app: base-app
+    environment: test
+spec:
+  schedule: "0 0 * * *"
+  timezone: "Asia/Tokyo"
+  suspend: false
+  workflowSpec:
+    entrypoint: main
+    templates:
+    - name: main
+      container:
+        image: alpine:latest
+        command: ["echo"]
+        args: ["base workflow"]
