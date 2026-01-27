@@ -10,7 +10,8 @@ COPY ./cmd ./cmd
 COPY ./config ./config
 COPY ./runner ./runner
 COPY ./structutil ./structutil
-COPY ./filesystem ./filesystem 
+COPY ./filesystem ./filesystem
+COPY ./kustomize ./kustomize 
 RUN CGO_ENABLED=0 go build -o /cron-workflow-replicator .
 
 FROM scratch
