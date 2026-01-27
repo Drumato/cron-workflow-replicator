@@ -28,7 +28,10 @@ jobs:
 
     - name: Build binary
       run: make build
-    
+
+    - name: Run example tests
+      run: make test-examples
+
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v9
       with:
