@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,10 +46,15 @@ type Config struct {
 }
 
 type Unit struct {
-	BaseManifestPath *string    `yaml:"baseManifestPath"`
-	OutputDirectory  string     `yaml:"outputDirectory"`
-	APIVersion       APIVersion `yaml:"apiVersion"`
-	Values           []Value    `yaml:"values"`
+	BaseManifestPath *string          `yaml:"baseManifestPath"`
+	OutputDirectory  string           `yaml:"outputDirectory"`
+	APIVersion       APIVersion       `yaml:"apiVersion"`
+	Kustomize        *KustomizeConfig `yaml:"kustomize"`
+	Values           []Value          `yaml:"values"`
+}
+
+type KustomizeConfig struct {
+	UpdateResources bool `yaml:"update-resources"`
 }
 
 type Value struct {
@@ -77,7 +83,7 @@ func (dfr *DefaultFileReader) ReadFile(filename string) ([]byte, error) {
 }
 
 // LoadBaseCronWorkflow loads a CronWorkflow from the base manifest file if BaseManifestPath is provided
-func (u *Unit) LoadBaseCronWorkflow(fileReader FileReader) (*argoworkflowsv1alpha1.CronWorkflow, error) {
+func (u *Unit) LoadBaseCronWorkflow(fileReader FileReader, configDir string) (*argoworkflowsv1alpha1.CronWorkflow, error) {
 	if u.BaseManifestPath == nil {
 		// No base manifest, return empty CronWorkflow with proper TypeMeta
 		return &argoworkflowsv1alpha1.CronWorkflow{
@@ -88,16 +94,22 @@ func (u *Unit) LoadBaseCronWorkflow(fileReader FileReader) (*argoworkflowsv1alph
 		}, nil
 	}
 
+	// Resolve relative path from config directory
+	baseManifestPath := *u.BaseManifestPath
+	if !filepath.IsAbs(baseManifestPath) {
+		baseManifestPath = filepath.Join(configDir, baseManifestPath)
+	}
+
 	// Read the base manifest file
-	data, err := fileReader.ReadFile(*u.BaseManifestPath)
+	data, err := fileReader.ReadFile(baseManifestPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read base manifest file %s: %w", *u.BaseManifestPath, err)
+		return nil, fmt.Errorf("failed to read base manifest file %s: %w", baseManifestPath, err)
 	}
 
 	// Unmarshal the YAML into CronWorkflow
 	var baseCronWorkflow argoworkflowsv1alpha1.CronWorkflow
 	if err := kyaml.Unmarshal(data, &baseCronWorkflow); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal base manifest file %s: %w", *u.BaseManifestPath, err)
+		return nil, fmt.Errorf("failed to unmarshal base manifest file %s: %w", baseManifestPath, err)
 	}
 
 	return &baseCronWorkflow, nil

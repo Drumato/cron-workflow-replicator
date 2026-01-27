@@ -58,6 +58,38 @@ The `--rm` flag automatically removes the container after execution, and `-v $(p
 - **withvalue**: Demonstrates how to inject custom values into the generated manifests (outputs to `./output/`)
 - **basemanifest**: Uses a base manifest template and applies different configurations to create multiple variants (outputs to `examples/v1alpha1/basemanifest/output/`)
 
+## Path Resolution
+
+The tool resolves relative paths in configuration files relative to the config file location, not the current working directory. This ensures consistent behavior regardless of where you run the command.
+
+### Supported Path Fields
+
+- `outputDirectory`: Output directory for generated YAML files
+- `baseManifestPath`: Path to the base CronWorkflow manifest template
+
+### Examples
+
+```yaml
+units:
+  - outputDirectory: "./output"              # Resolved relative to config file
+    baseManifestPath: "./base-manifest.yaml" # Resolved relative to config file
+    # ...
+  - outputDirectory: "manifests/output"      # Nested relative path
+    baseManifestPath: "templates/base.yaml"  # Nested relative path
+    # ...
+  - outputDirectory: "/absolute/path/output"         # Absolute paths work as-is
+    baseManifestPath: "/absolute/path/base.yaml"     # Absolute paths work as-is
+    # ...
+```
+
+This means you can run the tool from any directory and it will work correctly:
+
+```bash
+# These all work the same way:
+./cron-workflow-replicator --config examples/v1alpha1/basemanifest/config.yaml
+cd /tmp && /path/to/cron-workflow-replicator --config /path/to/examples/v1alpha1/basemanifest/config.yaml
+```
+
 ## Roadmap
 
 - [x] replicates CronWorkflow manifests with different values
@@ -65,3 +97,4 @@ The `--rm` flag automatically removes the container after execution, and `-v $(p
 - [x] can read baseManifestPath that is specified in config file
   - if the baseManifestPath is specified, the replicator reads the base manifest and unmarshal into base CronWorkflow object.
   - then, it applies the values from the config file to the base CronWorkflow object.
+- [x] resolves relative paths relative to config file location

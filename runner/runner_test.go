@@ -11,7 +11,9 @@ import (
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/drumato/cron-workflow-replicator/filesystem"
+	"github.com/drumato/cron-workflow-replicator/kustomize"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kyaml "sigs.k8s.io/yaml"
 )
@@ -29,7 +31,7 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 		{
 			name: "v1alpha1 API version",
 			unit: config.Unit{
-				OutputDirectory: tempDir,
+				OutputDirectory: "output", // Relative path
 				APIVersion:      config.APIVersionV1Alpha1,
 				Values: []config.Value{
 					{
@@ -47,8 +49,8 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 		{
 			name: "empty API version defaults to v1alpha1",
 			unit: config.Unit{
-				OutputDirectory: tempDir,
-				APIVersion:      "", // empty should default to v1alpha1
+				OutputDirectory: "output", // Relative path
+				APIVersion:      "",       // empty should default to v1alpha1
 				Values: []config.Value{
 					{
 						Filename: "test-default",
@@ -69,11 +71,11 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runner.processUnit(context.Background(), tt.unit)
+			err := runner.processUnit(context.Background(), tt.unit, tempDir)
 			assert.NoError(t, err)
 
 			// Check that the output file was created
-			outputFile := filepath.Join(tempDir, tt.unit.Values[0].Filename+".yaml")
+			outputFile := filepath.Join(tempDir, tt.unit.OutputDirectory, tt.unit.Values[0].Filename+".yaml")
 			_, err = os.Stat(outputFile)
 			assert.False(t, os.IsNotExist(err), "Output file %s was not created", outputFile)
 
@@ -346,7 +348,8 @@ spec:
 
 			// Run the test
 			ctx := context.Background()
-			err := runner.Run(ctx, tt.config)
+			configDir := "."
+			err := runner.Run(ctx, tt.config, configDir)
 			assert.NoError(t, err)
 
 			// Verify expected files were created
@@ -431,4 +434,208 @@ func (f *FilesystemFileReader) ReadFile(filename string) ([]byte, error) {
 
 	// For other filesystem types, we would need different handling
 	return nil, fmt.Errorf("unsupported file type for reading")
+}
+
+func TestRunner_KustomizeIntegration(t *testing.T) {
+	tests := []struct {
+		name                      string
+		unit                      config.Unit
+		configDir                 string
+		expectedFiles             []string
+		expectedKustomization     *kustomize.Kustomization
+		shouldCreateKustomization bool
+	}{
+		{
+			name: "kustomize enabled with multiple files",
+			unit: config.Unit{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Kustomize: &config.KustomizeConfig{
+					UpdateResources: true,
+				},
+				Values: []config.Value{
+					{
+						Filename: "backup-job",
+						Metadata: metav1.ObjectMeta{
+							Name:      "backup-cronworkflow",
+							Namespace: "default",
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 2 * * *",
+						},
+					},
+					{
+						Filename: "cleanup-job",
+						Metadata: metav1.ObjectMeta{
+							Name:      "cleanup-cronworkflow",
+							Namespace: "default",
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 4 * * *",
+						},
+					},
+				},
+			},
+			configDir: "/config",
+			expectedFiles: []string{
+				"/config/output/backup-job.yaml",
+				"/config/output/cleanup-job.yaml",
+				"/config/output/kustomization.yaml",
+			},
+			expectedKustomization: &kustomize.Kustomization{
+				APIVersion: "kustomize.config.k8s.io/v1beta1",
+				Kind:       "Kustomization",
+				Resources:  []string{"backup-job.yaml", "cleanup-job.yaml"},
+			},
+			shouldCreateKustomization: true,
+		},
+		{
+			name: "kustomize disabled",
+			unit: config.Unit{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Kustomize:       nil, // Not configured
+				Values: []config.Value{
+					{
+						Filename: "backup-job",
+						Metadata: metav1.ObjectMeta{
+							Name:      "backup-cronworkflow",
+							Namespace: "default",
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 2 * * *",
+						},
+					},
+				},
+			},
+			configDir: "/config",
+			expectedFiles: []string{
+				"/config/output/backup-job.yaml",
+			},
+			shouldCreateKustomization: false,
+		},
+		{
+			name: "kustomize configured but update-resources false",
+			unit: config.Unit{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Kustomize: &config.KustomizeConfig{
+					UpdateResources: false,
+				},
+				Values: []config.Value{
+					{
+						Filename: "backup-job",
+						Metadata: metav1.ObjectMeta{
+							Name:      "backup-cronworkflow",
+							Namespace: "default",
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 2 * * *",
+						},
+					},
+				},
+			},
+			configDir: "/config",
+			expectedFiles: []string{
+				"/config/output/backup-job.yaml",
+			},
+			shouldCreateKustomization: false,
+		},
+		{
+			name: "existing kustomization.yaml gets updated",
+			unit: config.Unit{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Kustomize: &config.KustomizeConfig{
+					UpdateResources: true,
+				},
+				Values: []config.Value{
+					{
+						Filename: "backup-job",
+						Metadata: metav1.ObjectMeta{
+							Name:      "backup-cronworkflow",
+							Namespace: "default",
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 2 * * *",
+						},
+					},
+				},
+			},
+			configDir: "/config",
+			expectedFiles: []string{
+				"/config/output/backup-job.yaml",
+				"/config/output/kustomization.yaml",
+			},
+			expectedKustomization: &kustomize.Kustomization{
+				APIVersion: "kustomize.config.k8s.io/v1beta1",
+				Kind:       "Kustomization",
+				Resources:  []string{"existing-resource.yaml", "backup-job.yaml"},
+			},
+			shouldCreateKustomization: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use in-memory filesystem for testing
+			fs := filesystem.NewMemoryFileSystem()
+			kustomizeManager := kustomize.NewManager(fs)
+
+			// Create existing kustomization.yaml for the "existing" test case
+			if tt.name == "existing kustomization.yaml gets updated" {
+				existingKustomization := kustomize.Kustomization{
+					APIVersion: "kustomize.config.k8s.io/v1beta1",
+					Kind:       "Kustomization",
+					Resources:  []string{"existing-resource.yaml"},
+				}
+				existingData, err := kyaml.Marshal(existingKustomization)
+				require.NoError(t, err)
+
+				outputDir := filepath.Join(tt.configDir, tt.unit.OutputDirectory)
+				err = fs.MkdirAll(outputDir, 0755)
+				require.NoError(t, err)
+				err = fs.WriteFile(filepath.Join(outputDir, "kustomization.yaml"), existingData, 0644)
+				require.NoError(t, err)
+			}
+
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+			fileReader := &FilesystemFileReader{fs: fs}
+			runner := New(logger,
+				WithFileSystem(fs),
+				WithFileReader(fileReader),
+				WithKustomizeManager(kustomizeManager))
+
+			// Run the test
+			ctx := context.Background()
+			err := runner.processUnit(ctx, tt.unit, tt.configDir)
+			assert.NoError(t, err)
+
+			// Verify expected files were created
+			for _, expectedFile := range tt.expectedFiles {
+				assert.True(t, fs.Exists(expectedFile), "Expected file %s was not created", expectedFile)
+			}
+
+			// Verify kustomization.yaml content if it should be created
+			if tt.shouldCreateKustomization {
+				kustomizationPath := filepath.Join(tt.configDir, tt.unit.OutputDirectory, "kustomization.yaml")
+				assert.True(t, fs.Exists(kustomizationPath), "kustomization.yaml should have been created")
+
+				data, err := fs.ReadFile(kustomizationPath)
+				require.NoError(t, err)
+
+				var actualKustomization kustomize.Kustomization
+				err = kyaml.Unmarshal(data, &actualKustomization)
+				require.NoError(t, err)
+
+				assert.Equal(t, tt.expectedKustomization.APIVersion, actualKustomization.APIVersion)
+				assert.Equal(t, tt.expectedKustomization.Kind, actualKustomization.Kind)
+				assert.ElementsMatch(t, tt.expectedKustomization.Resources, actualKustomization.Resources)
+			} else {
+				// Verify kustomization.yaml was not created
+				kustomizationPath := filepath.Join(tt.configDir, tt.unit.OutputDirectory, "kustomization.yaml")
+				assert.False(t, fs.Exists(kustomizationPath), "kustomization.yaml should not have been created")
+			}
+		})
+	}
 }

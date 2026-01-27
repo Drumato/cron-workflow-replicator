@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  creationTimestamp: null
+  labels:
+    app: backup-system
+    environment: production
+    schedule-type: daily
+  name: daily-backup-cronworkflow
+  namespace: backup
+spec:
+  schedule: 0 2 * * *
+  workflowSpec:
+    arguments: {}
+status:
+  active: null
+  conditions: null
+  failed: 0
+  lastScheduledTime: null
+  phase: ""
+  succeeded: 0

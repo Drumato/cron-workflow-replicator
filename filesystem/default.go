@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"io"
 	"os"
 )
 
@@ -22,6 +23,29 @@ func (fs *DefaultFileSystem) OpenFile(path string, flag int, perm uint32) (File,
 
 func (fs *DefaultFileSystem) MkdirAll(path string, perm uint32) error {
 	return os.MkdirAll(path, os.FileMode(perm))
+}
+
+// Exists checks if a file exists on the actual filesystem
+func (fs *DefaultFileSystem) Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// ReadFile reads the content of a file from the actual filesystem
+func (fs *DefaultFileSystem) ReadFile(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	return io.ReadAll(file)
+}
+
+// WriteFile writes content to a file on the actual filesystem
+func (fs *DefaultFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(path, data, perm)
 }
 
 type DefaultFile struct {

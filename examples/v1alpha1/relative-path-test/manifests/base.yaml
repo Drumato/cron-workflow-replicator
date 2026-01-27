@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: base-test-workflow
+  namespace: base
+  labels:
+    app: test-app
+    version: "1.0"
+spec:
+  schedule: "0 0 * * *"  # Default: Daily at midnight
+  timezone: "UTC"
+  suspend: false
+  workflowSpec:
+    entrypoint: test-pipeline
+    templates:
+    - name: test-pipeline
+      steps:
+      - - name: test-step
+          template: test-container
+    - name: test-container
+      container:
+        image: alpine:latest
+        command: ["echo"]
+        args: ["Hello from base manifest with nested relative path!"]

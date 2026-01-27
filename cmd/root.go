@@ -3,6 +3,7 @@ package cmd
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/drumato/cron-workflow-replicator/runner"
@@ -32,8 +33,11 @@ func New() *cobra.Command {
 				return err
 			}
 
+			// Extract config directory for relative path calculations
+			configDir := filepath.Dir(configFilePath)
+
 			r := runner.New(slog.Default())
-			if err := r.Run(cmd.Context(), cfg); err != nil {
+			if err := r.Run(cmd.Context(), cfg, configDir); err != nil {
 				return err
 			}
 

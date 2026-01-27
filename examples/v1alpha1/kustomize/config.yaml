@@ -1,0 +1,40 @@
+units:
+  - outputDirectory: "./output"  # Relative to config.yaml location
+    apiVersion: "v1alpha1"
+    kustomize:
+      update-resources: true
+    values:
+      - filename: "backup-job"
+        metadata:
+          name: "backup-cronworkflow"
+          namespace: "default"
+          labels:
+            app: "backup"
+            team: "platform"
+        spec:
+          schedule: "0 2 * * *"
+          workflowSpec:
+            entrypoint: "backup"
+            templates:
+            - name: "backup"
+              container:
+                image: "backup-tool:latest"
+                command: ["backup"]
+                args: ["--target", "database"]
+      - filename: "cleanup-job"
+        metadata:
+          name: "cleanup-cronworkflow"
+          namespace: "default"
+          labels:
+            app: "cleanup"
+            team: "platform"
+        spec:
+          schedule: "0 4 * * *"
+          workflowSpec:
+            entrypoint: "cleanup"
+            templates:
+            - name: "cleanup"
+              container:
+                image: "cleanup-tool:latest"
+                command: ["cleanup"]
+                args: ["--older-than", "30d"]
