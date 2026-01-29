@@ -53,7 +53,7 @@ func TestDefaultFileSystem_OpenFile_ErrorScenarios(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, file)
 				if file != nil {
-					file.Close()
+					require.NoError(t, file.Close())
 				}
 			}
 		})
@@ -83,7 +83,7 @@ func TestDefaultFileSystem_MkdirAll_ErrorScenarios(t *testing.T) {
 				// Create a temporary file that will block directory creation
 				tmpFile, err := os.CreateTemp("", "test-file-*")
 				require.NoError(t, err)
-				tmpFile.Close()
+				require.NoError(t, tmpFile.Close())
 				return tmpFile.Name()
 			}(),
 			path:        "", // will be set in test
@@ -103,7 +103,9 @@ func TestDefaultFileSystem_MkdirAll_ErrorScenarios(t *testing.T) {
 			if tt.setupPath != "" {
 				testPath = tt.setupPath + "/subdir"
 				cleanup = func() {
-					os.Remove(tt.setupPath)
+					if err := os.Remove(tt.setupPath); err != nil && !os.IsNotExist(err) {
+						t.Logf("Warning: failed to cleanup %s: %v", tt.setupPath, err)
+					}
 				}
 				defer cleanup()
 			}
@@ -115,7 +117,9 @@ func TestDefaultFileSystem_MkdirAll_ErrorScenarios(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				// Clean up created directory
-				os.RemoveAll(testPath)
+				if err := os.RemoveAll(testPath); err != nil {
+					t.Logf("Warning: failed to cleanup %s: %v", testPath, err)
+				}
 			}
 
 			if tt.cleanup != nil {
@@ -229,8 +233,12 @@ func TestDefaultFileSystem_WriteFile_ErrorScenarios(t *testing.T) {
 			if tt.setupPath != "" {
 				testPath = filepath.Join(tt.setupPath, "test-file.txt")
 				cleanup = func() {
-					os.Chmod(tt.setupPath, 0755) // restore permissions
-					os.RemoveAll(tt.setupPath)
+					if err := os.Chmod(tt.setupPath, 0755); err != nil {
+						t.Logf("Warning: failed to restore permissions on %s: %v", tt.setupPath, err)
+					}
+					if err := os.RemoveAll(tt.setupPath); err != nil {
+						t.Logf("Warning: failed to cleanup %s: %v", tt.setupPath, err)
+					}
 				}
 				defer cleanup()
 			}
@@ -246,7 +254,9 @@ func TestDefaultFileSystem_WriteFile_ErrorScenarios(t *testing.T) {
 				assert.NoError(t, readErr)
 				assert.Equal(t, tt.data, readData)
 				// Clean up
-				os.Remove(testPath)
+				if err := os.Remove(testPath); err != nil && !os.IsNotExist(err) {
+					t.Logf("Warning: failed to cleanup %s: %v", testPath, err)
+				}
 			}
 
 			if tt.cleanup != nil {
@@ -300,8 +310,12 @@ func TestDefaultFile_Write_ErrorScenarios(t *testing.T) {
 	// Create a temporary file for testing
 	tmpFile, err := os.CreateTemp("", "test-write-*")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to cleanup %s: %v", tmpFile.Name(), err)
+		}
+	}()
+	require.NoError(t, tmpFile.Close())
 
 	// Test writing after close
 	t.Run("write after close", func(t *testing.T) {
@@ -324,8 +338,12 @@ func TestDefaultFile_Close_Multiple(t *testing.T) {
 	// Create a temporary file for testing
 	tmpFile, err := os.CreateTemp("", "test-close-*")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to cleanup %s: %v", tmpFile.Name(), err)
+		}
+	}()
+	require.NoError(t, tmpFile.Close())
 
 	t.Run("multiple close calls", func(t *testing.T) {
 		file, err := fs.OpenFile(tmpFile.Name(), os.O_WRONLY, 0644)

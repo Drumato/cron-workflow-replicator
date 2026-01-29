@@ -332,9 +332,9 @@ func TestDefaultFileReader_ErrorScenarios(t *testing.T) {
 	reader := &DefaultFileReader{}
 
 	tests := []struct {
-		name         string
-		filename     string
-		expectedErr  string
+		name        string
+		filename    string
+		expectedErr string
 	}{
 		{
 			name:        "nonexistent file",

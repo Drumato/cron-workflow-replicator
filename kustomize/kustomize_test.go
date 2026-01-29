@@ -186,20 +186,20 @@ func TestManager_UpdateKustomization_InvalidExistingFile(t *testing.T) {
 
 func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 	tests := []struct {
-		name          string
-		setupFS       func(*filesystem.InMemoryFileSystem) string
-		outputDir     string
+		name           string
+		setupFS        func(*filesystem.InMemoryFileSystem) string
+		outputDir      string
 		generatedFiles []string
-		expectedError string
+		expectedError  string
 	}{
 		{
 			name: "empty output directory",
 			setupFS: func(fs *filesystem.InMemoryFileSystem) string {
 				return ""
 			},
-			outputDir:     "",
+			outputDir:      "",
 			generatedFiles: []string{"test.yaml"},
-			expectedError: "output directory cannot be empty",
+			expectedError:  "output directory cannot be empty",
 		},
 		{
 			name: "empty generated files list",
@@ -209,9 +209,9 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 				require.NoError(t, err)
 				return outputDir
 			},
-			outputDir:     "/test/output",
+			outputDir:      "/test/output",
 			generatedFiles: []string{},
-			expectedError: "", // Should not error, just return early
+			expectedError:  "", // Should not error, just return early
 		},
 		{
 			name: "mixed valid and invalid files",
@@ -221,9 +221,9 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 				require.NoError(t, err)
 				return outputDir
 			},
-			outputDir:     "/test/output",
+			outputDir:      "/test/output",
 			generatedFiles: []string{"valid.yaml", "invalid.txt", "", "another.yml"},
-			expectedError: "", // Should filter and process only valid files
+			expectedError:  "", // Should filter and process only valid files
 		},
 		{
 			name: "all invalid files",
@@ -233,9 +233,9 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 				require.NoError(t, err)
 				return outputDir
 			},
-			outputDir:     "/test/output",
+			outputDir:      "/test/output",
 			generatedFiles: []string{"invalid.txt", "another.json", ""},
-			expectedError: "", // Should return early with no valid files
+			expectedError:  "", // Should return early with no valid files
 		},
 		{
 			name: "empty kustomization file exists",
@@ -250,9 +250,9 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 				require.NoError(t, err)
 				return outputDir
 			},
-			outputDir:     "/test/output",
+			outputDir:      "/test/output",
 			generatedFiles: []string{"test.yaml"},
-			expectedError: "", // Should handle empty file gracefully
+			expectedError:  "", // Should handle empty file gracefully
 		},
 		{
 			name: "kustomization file with missing fields",
@@ -269,9 +269,9 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 				require.NoError(t, err)
 				return outputDir
 			},
-			outputDir:     "/test/output",
+			outputDir:      "/test/output",
 			generatedFiles: []string{"new.yaml"},
-			expectedError: "", // Should fix missing fields and continue
+			expectedError:  "", // Should fix missing fields and continue
 		},
 	}
 

@@ -641,7 +641,6 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 	}
 }
 
-
 // ErrorFileReader simulates various file reading errors
 type ErrorFileReader struct {
 	files  map[string][]byte
@@ -675,12 +674,12 @@ func (r *ErrorFileReader) ReadFile(filename string) ([]byte, error) {
 
 func TestRunner_processUnit_ErrorScenarios(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupFS      func(*filesystem.InMemoryFileSystem)
-		setupReader  func(*ErrorFileReader)
-		unit         config.Unit
-		configDir    string
-		expectedErr  string
+		name        string
+		setupFS     func(*filesystem.InMemoryFileSystem)
+		setupReader func(*ErrorFileReader)
+		unit        config.Unit
+		configDir   string
+		expectedErr string
 	}{
 		{
 			name: "base manifest read error",
@@ -831,4 +830,3 @@ func TestRunner_Run_ErrorPropagation(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create output directory")
 }
-
