@@ -3,9 +3,12 @@ package config
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 )
 
 func TestAPIVersion_GetSchemeGroupVersion(t *testing.T) {
@@ -354,6 +357,270 @@ func TestDefaultFileReader_ErrorScenarios(t *testing.T) {
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedErr)
 			assert.Nil(t, data)
+		})
+	}
+}
+
+func TestConfig_ValidateConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name        string
+		config      Config
+		configDir   string
+		setupFiles  func(string) // Function to create necessary files
+		expectError bool
+		errorContains string
+	}{
+		{
+			name: "valid configuration",
+			config: Config{
+				Units: []Unit{
+					{
+						OutputDirectory: "output",
+						APIVersion:      APIVersionV1Alpha1,
+						Values: []Value{
+							{
+								Filename: "test-job",
+								Metadata: metav1.ObjectMeta{Name: "test"},
+								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+							},
+						},
+					},
+				},
+			},
+			configDir: tempDir,
+			setupFiles: func(dir string) {
+				// Create output directory
+				os.MkdirAll(filepath.Join(dir, "output"), 0755)
+			},
+			expectError: false,
+		},
+		{
+			name:        "empty units",
+			config:      Config{Units: []Unit{}},
+			configDir:   tempDir,
+			expectError: true,
+			errorContains: "must contain at least one unit",
+		},
+		{
+			name: "missing output directory",
+			config: Config{
+				Units: []Unit{
+					{
+						OutputDirectory: "",
+						APIVersion:      APIVersionV1Alpha1,
+						Values: []Value{
+							{
+								Filename: "test-job",
+								Metadata: metav1.ObjectMeta{Name: "test"},
+								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+							},
+						},
+					},
+				},
+			},
+			configDir:     tempDir,
+			expectError:   true,
+			errorContains: "outputDirectory is required",
+		},
+		{
+			name: "base manifest file does not exist",
+			config: Config{
+				Units: []Unit{
+					{
+						BaseManifestPath: func() *string { s := "nonexistent.yaml"; return &s }(),
+						OutputDirectory:  "output",
+						APIVersion:       APIVersionV1Alpha1,
+						Values: []Value{
+							{
+								Filename: "test-job",
+								Metadata: metav1.ObjectMeta{Name: "test"},
+								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+							},
+						},
+					},
+				},
+			},
+			configDir: tempDir,
+			setupFiles: func(dir string) {
+				os.MkdirAll(filepath.Join(dir, "output"), 0755)
+			},
+			expectError:   true,
+			errorContains: "does not exist or cannot be accessed",
+		},
+		{
+			name: "empty values",
+			config: Config{
+				Units: []Unit{
+					{
+						OutputDirectory: "output",
+						APIVersion:      APIVersionV1Alpha1,
+						Values:          []Value{},
+					},
+				},
+			},
+			configDir:     tempDir,
+			expectError:   true,
+			errorContains: "must contain at least one value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupFiles != nil {
+				tt.setupFiles(tt.configDir)
+			}
+
+			err := tt.config.ValidateConfig(tt.configDir)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUnit_Validate(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name        string
+		unit        Unit
+		configDir   string
+		setupFiles  func(string)
+		expectError bool
+		errorContains string
+	}{
+		{
+			name: "valid unit with base manifest",
+			unit: Unit{
+				BaseManifestPath: func() *string { s := "base.yaml"; return &s }(),
+				OutputDirectory:  "output",
+				APIVersion:       APIVersionV1Alpha1,
+				Values: []Value{
+					{
+						Filename: "test-job",
+						Metadata: metav1.ObjectMeta{Name: "test"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			},
+			configDir: tempDir,
+			setupFiles: func(dir string) {
+				os.MkdirAll(filepath.Join(dir, "output"), 0755)
+				os.WriteFile(filepath.Join(dir, "base.yaml"), []byte("apiVersion: argoproj.io/v1alpha1\nkind: CronWorkflow\n"), 0644)
+			},
+			expectError: false,
+		},
+		{
+			name: "output directory is a file",
+			unit: Unit{
+				OutputDirectory: "not-a-directory",
+				APIVersion:      APIVersionV1Alpha1,
+				Values: []Value{
+					{
+						Filename: "test-job",
+						Metadata: metav1.ObjectMeta{Name: "test"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			},
+			configDir: tempDir,
+			setupFiles: func(dir string) {
+				// Create a file instead of directory
+				os.WriteFile(filepath.Join(dir, "not-a-directory"), []byte("file content"), 0644)
+			},
+			expectError:   true,
+			errorContains: "exists but is not a directory",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupFiles != nil {
+				tt.setupFiles(tt.configDir)
+			}
+
+			err := tt.unit.Validate(tt.configDir)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValue_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       Value
+		expectError bool
+		errorContains string
+	}{
+		{
+			name: "valid value",
+			value: Value{
+				Filename: "test-job",
+				Metadata: metav1.ObjectMeta{Name: "test"},
+				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+			},
+			expectError: false,
+		},
+		{
+			name: "missing filename",
+			value: Value{
+				Filename: "",
+				Metadata: metav1.ObjectMeta{Name: "test"},
+				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+			},
+			expectError:   true,
+			errorContains: "filename is required",
+		},
+		{
+			name: "missing metadata name",
+			value: Value{
+				Filename: "test-job",
+				Metadata: metav1.ObjectMeta{Name: ""},
+				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+			},
+			expectError:   true,
+			errorContains: "metadata.name is required",
+		},
+		{
+			name: "missing schedule",
+			value: Value{
+				Filename: "test-job",
+				Metadata: metav1.ObjectMeta{Name: "test"},
+				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: ""},
+			},
+			expectError:   true,
+			errorContains: "spec.schedule is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.value.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

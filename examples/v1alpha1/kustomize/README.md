@@ -12,7 +12,7 @@ This configuration:
 ## Configuration Features
 
 The `config.yaml` demonstrates:
-- **Kustomize Integration**: `kustomize.update-resources: true` enables automatic kustomization.yaml management
+- **Kustomize Integration**: `kustomize.updateResources: true` enables automatic kustomization.yaml management
 - **Multiple Workflows**: Two different CronWorkflows with different schedules and purposes
 - **Path Resolution**: Output directory is relative to the config file location
 

@@ -7,15 +7,11 @@ import (
 	"strings"
 
 	"github.com/drumato/cron-workflow-replicator/filesystem"
+	"sigs.k8s.io/kustomize/api/types"
 	kyaml "sigs.k8s.io/yaml"
 )
 
-// Kustomization represents the structure of a kustomization.yaml file
-type Kustomization struct {
-	APIVersion string   `yaml:"apiVersion"`
-	Kind       string   `yaml:"kind"`
-	Resources  []string `yaml:"resources"`
-}
+// We use the official Kustomization type from sigs.k8s.io/kustomize/api/types
 
 // Manager handles kustomization.yaml file operations
 type Manager struct {
@@ -62,11 +58,13 @@ func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string)
 
 	kustomizationPath := filepath.Join(outputDir, "kustomization.yaml")
 
-	// Initialize with default kustomization structure
-	kustomization := &Kustomization{
-		APIVersion: "kustomize.config.k8s.io/v1beta1",
-		Kind:       "Kustomization",
-		Resources:  []string{},
+	// Initialize with default kustomization structure using official types
+	kustomization := &types.Kustomization{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "kustomize.config.k8s.io/v1beta1",
+			Kind:       "Kustomization",
+		},
+		Resources: []string{},
 	}
 
 	// Try to read existing kustomization.yaml if it exists
@@ -90,12 +88,12 @@ func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string)
 			}
 
 			// Validate the parsed kustomization structure
-			if kustomization.APIVersion == "" {
-				kustomization.APIVersion = "kustomize.config.k8s.io/v1beta1"
+			if kustomization.TypeMeta.APIVersion == "" {
+				kustomization.TypeMeta.APIVersion = "kustomize.config.k8s.io/v1beta1"
 				slog.Info("setting missing apiVersion in existing kustomization.yaml", "path", kustomizationPath)
 			}
-			if kustomization.Kind == "" {
-				kustomization.Kind = "Kustomization"
+			if kustomization.TypeMeta.Kind == "" {
+				kustomization.TypeMeta.Kind = "Kustomization"
 				slog.Info("setting missing kind in existing kustomization.yaml", "path", kustomizationPath)
 			}
 			if kustomization.Resources == nil {

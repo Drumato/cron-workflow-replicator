@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/kustomize/api/types"
 	kyaml "sigs.k8s.io/yaml"
 )
 
@@ -257,23 +258,18 @@ spec:
 			},
 			expectedValues: map[string]func(*testing.T, []byte){
 				"output/customized1.yaml": func(t *testing.T, content []byte) {
-					var cw argoworkflowsv1alpha1.CronWorkflow
-					err := kyaml.Unmarshal(content, &cw)
-					assert.NoError(t, err)
+					cw := validateCronWorkflowContent(t, content)
 
-					// Should have merged metadata
-					assert.Equal(t, "custom-cronworkflow", cw.Name)
-					assert.Equal(t, "custom-namespace", cw.Namespace)
+					// Validate merged metadata
+					assertCronWorkflowFields(t, cw, "custom-cronworkflow", "custom-namespace", "0 6 * * *")
 
-					// Should have base labels plus custom labels
-					assert.Equal(t, "base-app", cw.Labels["app"])
-					assert.Equal(t, "test", cw.Labels["environment"])
-					assert.Equal(t, "label", cw.Labels["custom"])
+					// Validate merged labels (base + custom)
+					baseLabels := map[string]string{"app": "base-app", "environment": "test"}
+					customLabels := map[string]string{"custom": "label"}
+					assertMergedFields(t, cw, baseLabels, customLabels)
 
-					// Should have overridden schedule but keep base timezone and other specs
-					assert.Equal(t, "0 6 * * *", cw.Spec.Schedule)
-					assert.Equal(t, "Asia/Tokyo", cw.Spec.Timezone)
-					assert.Equal(t, "main", cw.Spec.WorkflowSpec.Entrypoint)
+					// Validate merged spec (overrides + base values)
+					assertCronWorkflowSpec(t, cw, "main", "Asia/Tokyo", &[]bool{false}[0])
 				},
 			},
 			baseManifestPath:     "testdata/base-manifest.yaml",
@@ -307,15 +303,16 @@ spec:
 			},
 			expectedValues: map[string]func(*testing.T, []byte){
 				"output/standalone1.yaml": func(t *testing.T, content []byte) {
-					var cw argoworkflowsv1alpha1.CronWorkflow
-					err := kyaml.Unmarshal(content, &cw)
-					assert.NoError(t, err)
+					cw := validateCronWorkflowContent(t, content)
 
 					// Should only have the specified values, no base values
-					assert.Equal(t, "standalone-cronworkflow", cw.Name)
-					assert.Equal(t, "0 12 * * 1", cw.Spec.Schedule)
+					assertCronWorkflowFields(t, cw, "standalone-cronworkflow", "standalone-namespace", "0 12 * * 1")
+
 					// Timezone should be empty since no base manifest
-					assert.Equal(t, "", cw.Spec.Timezone)
+					assert.Equal(t, "", cw.Spec.Timezone, "Timezone should be empty without base manifest")
+
+					// Should have no labels from base manifest
+					assert.Empty(t, cw.Labels, "Labels should be empty without base manifest")
 				},
 			},
 			shouldCreateBaseFile: false,
@@ -374,44 +371,103 @@ spec:
 	}
 }
 
-// Helper functions for validation
-func validateBasicCronWorkflow(t *testing.T, content []byte, expectedName, expectedNamespace string) {
+// Enhanced helper functions for comprehensive validation
+func validateCronWorkflowContent(t *testing.T, content []byte) *argoworkflowsv1alpha1.CronWorkflow {
+	t.Helper()
 	var cw argoworkflowsv1alpha1.CronWorkflow
 	err := kyaml.Unmarshal(content, &cw)
-	assert.NoError(t, err)
+	require.NoError(t, err, "Failed to unmarshal CronWorkflow YAML")
 
-	assert.Equal(t, "argoproj.io/v1alpha1", cw.APIVersion)
-	assert.Equal(t, "CronWorkflow", cw.Kind)
+	// Validate basic required fields
+	assert.Equal(t, "argoproj.io/v1alpha1", cw.APIVersion, "Incorrect APIVersion")
+	assert.Equal(t, "CronWorkflow", cw.Kind, "Incorrect Kind")
 
+	return &cw
+}
+
+func validateKustomizationContent(t *testing.T, content []byte) *types.Kustomization {
+	t.Helper()
+	var k types.Kustomization
+	err := kyaml.Unmarshal(content, &k)
+	require.NoError(t, err, "Failed to unmarshal Kustomization YAML")
+
+	// Validate basic required fields
+	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", k.TypeMeta.APIVersion, "Incorrect Kustomization APIVersion")
+	assert.Equal(t, "Kustomization", k.TypeMeta.Kind, "Incorrect Kustomization Kind")
+
+	return &k
+}
+
+func assertCronWorkflowFields(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow, expectedName, expectedNamespace, expectedSchedule string) {
+	t.Helper()
 	if expectedName != "" {
-		assert.Equal(t, expectedName, cw.Name)
+		assert.Equal(t, expectedName, cw.Name, "Incorrect CronWorkflow name")
 	}
 	if expectedNamespace != "" {
-		assert.Equal(t, expectedNamespace, cw.Namespace)
+		assert.Equal(t, expectedNamespace, cw.Namespace, "Incorrect CronWorkflow namespace")
+	}
+	if expectedSchedule != "" {
+		assert.Equal(t, expectedSchedule, cw.Spec.Schedule, "Incorrect CronWorkflow schedule")
 	}
 }
 
-func validateCronWorkflowWithValues(t *testing.T, content []byte, expectedName, expectedNamespace, expectedSchedule, expectedEntrypoint string) {
-	validateBasicCronWorkflow(t, content, expectedName, expectedNamespace)
-
-	var cw argoworkflowsv1alpha1.CronWorkflow
-	err := kyaml.Unmarshal(content, &cw)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expectedSchedule, cw.Spec.Schedule)
-	assert.Equal(t, expectedEntrypoint, cw.Spec.WorkflowSpec.Entrypoint)
-}
-
-func validateLabels(t *testing.T, content []byte, expectedLabels map[string]string) {
-	var cw argoworkflowsv1alpha1.CronWorkflow
-	err := kyaml.Unmarshal(content, &cw)
-	assert.NoError(t, err)
-
+func assertCronWorkflowLabels(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow, expectedLabels map[string]string) {
+	t.Helper()
 	for key, expectedValue := range expectedLabels {
 		actualValue, exists := cw.Labels[key]
 		assert.True(t, exists, "Expected label '%s' not found", key)
-		assert.Equal(t, expectedValue, actualValue)
+		assert.Equal(t, expectedValue, actualValue, "Incorrect value for label '%s'", key)
 	}
+}
+
+func assertCronWorkflowSpec(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow, expectedEntrypoint, expectedTimezone string, expectedSuspend *bool) {
+	t.Helper()
+	if expectedEntrypoint != "" {
+		assert.Equal(t, expectedEntrypoint, cw.Spec.WorkflowSpec.Entrypoint, "Incorrect WorkflowSpec entrypoint")
+	}
+	if expectedTimezone != "" {
+		assert.Equal(t, expectedTimezone, cw.Spec.Timezone, "Incorrect timezone")
+	}
+	if expectedSuspend != nil {
+		assert.Equal(t, *expectedSuspend, cw.Spec.Suspend, "Incorrect suspend value")
+	}
+}
+
+func assertMergedFields(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow, baseLabels, overrideLabels map[string]string) {
+	t.Helper()
+	// Check that base labels are preserved
+	for key, expectedValue := range baseLabels {
+		actualValue, exists := cw.Labels[key]
+		assert.True(t, exists, "Base label '%s' should be preserved", key)
+		assert.Equal(t, expectedValue, actualValue, "Base label '%s' value incorrect", key)
+	}
+
+	// Check that override labels are applied
+	for key, expectedValue := range overrideLabels {
+		actualValue, exists := cw.Labels[key]
+		assert.True(t, exists, "Override label '%s' should be present", key)
+		assert.Equal(t, expectedValue, actualValue, "Override label '%s' value incorrect", key)
+	}
+}
+
+// Legacy helper functions for backward compatibility
+func validateBasicCronWorkflow(t *testing.T, content []byte, expectedName, expectedNamespace string) {
+	t.Helper()
+	cw := validateCronWorkflowContent(t, content)
+	assertCronWorkflowFields(t, cw, expectedName, expectedNamespace, "")
+}
+
+func validateCronWorkflowWithValues(t *testing.T, content []byte, expectedName, expectedNamespace, expectedSchedule, expectedEntrypoint string) {
+	t.Helper()
+	cw := validateCronWorkflowContent(t, content)
+	assertCronWorkflowFields(t, cw, expectedName, expectedNamespace, expectedSchedule)
+	assertCronWorkflowSpec(t, cw, expectedEntrypoint, "", nil)
+}
+
+func validateLabels(t *testing.T, content []byte, expectedLabels map[string]string) {
+	t.Helper()
+	cw := validateCronWorkflowContent(t, content)
+	assertCronWorkflowLabels(t, cw, expectedLabels)
 }
 
 // FilesystemFileReader adapts filesystem.FileSystem to config.FileReader interface
@@ -443,7 +499,7 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 		unit                      config.Unit
 		configDir                 string
 		expectedFiles             []string
-		expectedKustomization     *kustomize.Kustomization
+		expectedKustomization     *types.Kustomization
 		shouldCreateKustomization bool
 	}{
 		{
@@ -483,9 +539,11 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				"/config/output/cleanup-job.yaml",
 				"/config/output/kustomization.yaml",
 			},
-			expectedKustomization: &kustomize.Kustomization{
-				APIVersion: "kustomize.config.k8s.io/v1beta1",
-				Kind:       "Kustomization",
+			expectedKustomization: &types.Kustomization{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "kustomize.config.k8s.io/v1beta1",
+					Kind:       "Kustomization",
+				},
 				Resources:  []string{"backup-job.yaml", "cleanup-job.yaml"},
 			},
 			shouldCreateKustomization: true,
@@ -568,9 +626,11 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				"/config/output/backup-job.yaml",
 				"/config/output/kustomization.yaml",
 			},
-			expectedKustomization: &kustomize.Kustomization{
-				APIVersion: "kustomize.config.k8s.io/v1beta1",
-				Kind:       "Kustomization",
+			expectedKustomization: &types.Kustomization{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "kustomize.config.k8s.io/v1beta1",
+					Kind:       "Kustomization",
+				},
 				Resources:  []string{"existing-resource.yaml", "backup-job.yaml"},
 			},
 			shouldCreateKustomization: true,
@@ -585,9 +645,11 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 
 			// Create existing kustomization.yaml for the "existing" test case
 			if tt.name == "existing kustomization.yaml gets updated" {
-				existingKustomization := kustomize.Kustomization{
-					APIVersion: "kustomize.config.k8s.io/v1beta1",
-					Kind:       "Kustomization",
+				existingKustomization := types.Kustomization{
+					TypeMeta: types.TypeMeta{
+						APIVersion: "kustomize.config.k8s.io/v1beta1",
+						Kind:       "Kustomization",
+					},
 					Resources:  []string{"existing-resource.yaml"},
 				}
 				existingData, err := kyaml.Marshal(existingKustomization)
@@ -625,12 +687,12 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				data, err := fs.ReadFile(kustomizationPath)
 				require.NoError(t, err)
 
-				var actualKustomization kustomize.Kustomization
+				var actualKustomization types.Kustomization
 				err = kyaml.Unmarshal(data, &actualKustomization)
 				require.NoError(t, err)
 
-				assert.Equal(t, tt.expectedKustomization.APIVersion, actualKustomization.APIVersion)
-				assert.Equal(t, tt.expectedKustomization.Kind, actualKustomization.Kind)
+				assert.Equal(t, tt.expectedKustomization.TypeMeta.APIVersion, actualKustomization.TypeMeta.APIVersion)
+				assert.Equal(t, tt.expectedKustomization.TypeMeta.Kind, actualKustomization.TypeMeta.Kind)
 				assert.ElementsMatch(t, tt.expectedKustomization.Resources, actualKustomization.Resources)
 			} else {
 				// Verify kustomization.yaml was not created
@@ -829,4 +891,303 @@ func TestRunner_Run_ErrorPropagation(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create output directory")
+}
+
+func TestRunner_MemoryUsage_InMemoryGeneration(t *testing.T) {
+	// Test that in-memory generation doesn't leak memory
+	fs := filesystem.NewInMemoryFileSystem()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	fileReader := &FilesystemFileReader{fs: fs}
+	kustomizeManager := kustomize.NewManager(fs)
+	runner := New(logger, WithFileSystem(fs), WithFileReader(fileReader), WithKustomizeManager(kustomizeManager))
+
+	// Create a config with multiple units and files to stress test memory usage
+	cfg := config.Config{
+		Units: []config.Unit{},
+	}
+
+	// Generate many units to test memory usage
+	for i := 0; i < 100; i++ {
+		unit := config.Unit{
+			OutputDirectory: fmt.Sprintf("output-%d", i),
+			APIVersion:      config.APIVersionV1Alpha1,
+			Values:          []config.Value{},
+		}
+
+		// Generate many values per unit
+		for j := 0; j < 10; j++ {
+			unit.Values = append(unit.Values, config.Value{
+				Filename: fmt.Sprintf("workflow-%d-%d", i, j),
+				Metadata: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("test-workflow-%d-%d", i, j),
+					Namespace: "default",
+					Labels: map[string]string{
+						"batch": fmt.Sprintf("batch-%d", i),
+						"index": fmt.Sprintf("%d", j),
+					},
+				},
+				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+					Schedule: "0 0 * * *",
+					WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
+						Entrypoint: "main",
+					},
+				},
+			})
+		}
+
+		cfg.Units = append(cfg.Units, unit)
+	}
+
+	ctx := context.Background()
+	err := runner.Run(ctx, cfg, "/config")
+	assert.NoError(t, err, "Should handle large number of files without error")
+
+	// Verify that files were created (spot check)
+	assert.True(t, fs.Exists("/config/output-0/workflow-0-0.yaml"))
+	assert.True(t, fs.Exists("/config/output-50/workflow-50-5.yaml"))
+	assert.True(t, fs.Exists("/config/output-99/workflow-99-9.yaml"))
+
+	// Test doesn't verify specific memory usage, but ensures no crashes or errors
+	// In a real environment, you could use runtime.ReadMemStats() to check memory usage
+}
+
+func BenchmarkRunner_InMemoryGeneration(b *testing.B) {
+	// Benchmark in-memory file generation vs theoretical file I/O performance
+	baseManifest := `apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: base-cronworkflow
+  namespace: default
+spec:
+  schedule: "0 0 * * *"
+  workflowSpec:
+    entrypoint: main`
+
+	fs := filesystem.NewInMemoryFileSystem()
+	// Create base manifest
+	err := fs.MkdirAll("testdata", 0755)
+	require.NoError(b, err)
+	err = fs.WriteFile("testdata/base-manifest.yaml", []byte(baseManifest), 0644)
+	require.NoError(b, err)
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	fileReader := &FilesystemFileReader{fs: fs}
+	runner := New(logger, WithFileSystem(fs), WithFileReader(fileReader))
+
+	cfg := config.Config{
+		Units: []config.Unit{
+			{
+				BaseManifestPath: func() *string { s := "testdata/base-manifest.yaml"; return &s }(),
+				OutputDirectory:  "output",
+				APIVersion:       config.APIVersionV1Alpha1,
+				Values: []config.Value{
+					{
+						Filename: "benchmark-workflow",
+						Metadata: metav1.ObjectMeta{
+							Name:      "benchmark-cronworkflow",
+							Namespace: "benchmark",
+							Labels: map[string]string{
+								"benchmark": "true",
+							},
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 6 * * *",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Clear previous run output
+		if fs.Exists("/config/output") {
+			// Simple approach: recreate the filesystem for each benchmark iteration
+			fs = filesystem.NewInMemoryFileSystem()
+			err := fs.MkdirAll("testdata", 0755)
+			require.NoError(b, err)
+			err = fs.WriteFile("testdata/base-manifest.yaml", []byte(baseManifest), 0644)
+			require.NoError(b, err)
+			fileReader = &FilesystemFileReader{fs: fs}
+			runner = New(logger, WithFileSystem(fs), WithFileReader(fileReader))
+		}
+
+		ctx := context.Background()
+		err := runner.Run(ctx, cfg, "/config")
+		require.NoError(b, err)
+	}
+}
+
+func TestRunner_ConcurrentInMemoryAccess(t *testing.T) {
+	// Test concurrent access to in-memory filesystem doesn't cause race conditions
+	// Note: Each goroutine uses its own filesystem to avoid concurrent access issues
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	// Create multiple runners to simulate concurrent usage
+	numGoroutines := 10
+	errors := make(chan error, numGoroutines)
+	filesystems := make([]*filesystem.InMemoryFileSystem, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(goroutineID int) {
+			// Each goroutine gets its own filesystem to avoid race conditions
+			fs := filesystem.NewInMemoryFileSystem()
+			fileReader := &FilesystemFileReader{fs: fs}
+			runner := New(logger, WithFileSystem(fs), WithFileReader(fileReader))
+			filesystems[goroutineID] = fs
+
+			cfg := config.Config{
+				Units: []config.Unit{
+					{
+						OutputDirectory: "output",
+						APIVersion:      config.APIVersionV1Alpha1,
+						Values: []config.Value{
+							{
+								Filename: fmt.Sprintf("concurrent-workflow-%d", goroutineID),
+								Metadata: metav1.ObjectMeta{
+									Name:      fmt.Sprintf("concurrent-cronworkflow-%d", goroutineID),
+									Namespace: "concurrent-test",
+								},
+								Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+									Schedule: "0 0 * * *",
+								},
+							},
+						},
+					},
+				},
+			}
+
+			ctx := context.Background()
+			err := runner.Run(ctx, cfg, "/config")
+			errors <- err
+		}(i)
+	}
+
+	// Collect results
+	for i := 0; i < numGoroutines; i++ {
+		err := <-errors
+		assert.NoError(t, err, "Concurrent access should not cause errors")
+	}
+
+	// Verify all files were created in their respective filesystems
+	for i := 0; i < numGoroutines; i++ {
+		if filesystems[i] != nil {
+			expectedFile := fmt.Sprintf("/config/output/concurrent-workflow-%d.yaml", i)
+			assert.True(t, filesystems[i].Exists(expectedFile), "File %s should exist in filesystem %d", expectedFile, i)
+		}
+	}
+}
+
+func TestRunner_ContentValidation_ComprehensiveFieldChecking(t *testing.T) {
+	// Comprehensive test that validates ALL generated content structure
+	baseManifest := `apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: comprehensive-base
+  namespace: base-ns
+  labels:
+    base-label: base-value
+    shared-label: base-shared
+  annotations:
+    base-annotation: base-annotation-value
+spec:
+  schedule: "0 0 * * *"
+  timezone: "Asia/Tokyo"
+  suspend: false
+  startingDeadlineSeconds: 300
+  concurrencyPolicy: "Forbid"
+  workflowSpec:
+    entrypoint: base-entrypoint
+    arguments:
+      parameters:
+      - name: base-param
+        value: base-param-value`
+
+	fs := filesystem.NewInMemoryFileSystem()
+	// Create base manifest
+	err := fs.MkdirAll("/config/testdata", 0755)
+	require.NoError(t, err)
+	err = fs.WriteFile("/config/testdata/comprehensive-base.yaml", []byte(baseManifest), 0644)
+	require.NoError(t, err)
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	fileReader := &FilesystemFileReader{fs: fs}
+	kustomizeManager := kustomize.NewManager(fs)
+	runner := New(logger, WithFileSystem(fs), WithFileReader(fileReader), WithKustomizeManager(kustomizeManager))
+
+	cfg := config.Config{
+		Units: []config.Unit{
+			{
+				BaseManifestPath: func() *string { s := "/config/testdata/comprehensive-base.yaml"; return &s }(),
+				OutputDirectory:  "output",
+				APIVersion:       config.APIVersionV1Alpha1,
+				Values: []config.Value{
+					{
+						Filename: "comprehensive-test",
+						Metadata: metav1.ObjectMeta{
+							Name:      "comprehensive-cronworkflow",
+							Namespace: "override-ns",
+							Labels: map[string]string{
+								"override-label": "override-value",
+								"shared-label":   "override-shared", // Should override base
+							},
+							Annotations: map[string]string{
+								"override-annotation": "override-annotation-value",
+							},
+						},
+						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+							Schedule: "0 6 * * *", // Override base schedule
+							Suspend:  true,        // Override base suspend
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	err = runner.Run(ctx, cfg, "/config")
+	require.NoError(t, err)
+
+	// Read and comprehensively validate the generated file
+	file, err := fs.OpenFile("/config/output/comprehensive-test.yaml", 0, 0)
+	require.NoError(t, err)
+	memFile := file.(*filesystem.InMemoryFile)
+	content := memFile.GetData()
+	err = file.Close()
+	require.NoError(t, err)
+
+	// Use comprehensive validation
+	cw := validateCronWorkflowContent(t, content)
+
+	// Validate overridden fields
+	assertCronWorkflowFields(t, cw, "comprehensive-cronworkflow", "override-ns", "0 6 * * *")
+
+	// Validate merged labels (base + override)
+	expectedLabels := map[string]string{
+		"base-label":     "base-value",     // From base
+		"shared-label":   "override-shared", // Overridden
+		"override-label": "override-value", // New
+	}
+	assertCronWorkflowLabels(t, cw, expectedLabels)
+
+	// Validate merged annotations
+	assert.Equal(t, "base-annotation-value", cw.Annotations["base-annotation"], "Base annotation should be preserved")
+	assert.Equal(t, "override-annotation-value", cw.Annotations["override-annotation"], "Override annotation should be present")
+
+	// Validate merged spec fields
+	assert.Equal(t, "0 6 * * *", cw.Spec.Schedule, "Schedule should be overridden")
+	assert.Equal(t, true, cw.Spec.Suspend, "Suspend should be overridden")
+	assert.Equal(t, "Asia/Tokyo", cw.Spec.Timezone, "Timezone should be preserved from base")
+	assert.Equal(t, argoworkflowsv1alpha1.ConcurrencyPolicy("Forbid"), cw.Spec.ConcurrencyPolicy, "ConcurrencyPolicy should be preserved from base")
+	if assert.NotNil(t, cw.Spec.StartingDeadlineSeconds, "StartingDeadlineSeconds should be preserved") {
+		assert.Equal(t, int64(300), *cw.Spec.StartingDeadlineSeconds, "StartingDeadlineSeconds value should be correct")
+	}
+
+	// Validate WorkflowSpec fields
+	assert.Equal(t, "base-entrypoint", cw.Spec.WorkflowSpec.Entrypoint, "WorkflowSpec.Entrypoint should be preserved from base")
+	assert.NotNil(t, cw.Spec.WorkflowSpec.Arguments, "WorkflowSpec.Arguments should be preserved")
+	assert.Len(t, cw.Spec.WorkflowSpec.Arguments.Parameters, 1, "Should have base parameters")
+	assert.Equal(t, "base-param", cw.Spec.WorkflowSpec.Arguments.Parameters[0].Name, "Base parameter name should be preserved")
 }

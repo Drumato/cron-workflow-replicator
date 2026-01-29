@@ -55,7 +55,7 @@ type Unit struct {
 }
 
 type KustomizeConfig struct {
-	UpdateResources bool `yaml:"update-resources"`
+	UpdateResources bool `yaml:"updateResources"`
 }
 
 type Value struct {
@@ -116,4 +116,97 @@ func (u *Unit) LoadBaseCronWorkflow(fileReader FileReader, configDir string) (*a
 	}
 
 	return &baseCronWorkflow, nil
+}
+
+// ValidateConfig validates the configuration settings
+func (c *Config) ValidateConfig(configDir string) error {
+	if len(c.Units) == 0 {
+		return fmt.Errorf("configuration must contain at least one unit")
+	}
+
+	for i, unit := range c.Units {
+		if err := unit.Validate(configDir); err != nil {
+			return fmt.Errorf("validation failed for unit %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// Validate validates a single unit configuration
+func (u *Unit) Validate(configDir string) error {
+	// Check output directory
+	if u.OutputDirectory == "" {
+		return fmt.Errorf("outputDirectory is required")
+	}
+
+	// Resolve output directory path
+	outputDir := u.OutputDirectory
+	if !filepath.IsAbs(outputDir) {
+		outputDir = filepath.Join(configDir, outputDir)
+	}
+
+	// Check if output directory exists or if its parent exists and is writable
+	if info, err := os.Stat(outputDir); err != nil {
+		if os.IsNotExist(err) {
+			// Check if parent directory exists and is writable
+			parentDir := filepath.Dir(outputDir)
+			if parentInfo, parentErr := os.Stat(parentDir); parentErr != nil {
+				return fmt.Errorf("output directory parent %s does not exist: %w", parentDir, parentErr)
+			} else if !parentInfo.IsDir() {
+				return fmt.Errorf("output directory parent %s is not a directory", parentDir)
+			}
+			// Try to create the output directory to verify writability
+			if createErr := os.MkdirAll(outputDir, 0755); createErr != nil {
+				return fmt.Errorf("cannot create output directory %s: %w", outputDir, createErr)
+			}
+		} else {
+			return fmt.Errorf("cannot access output directory %s: %w", outputDir, err)
+		}
+	} else if !info.IsDir() {
+		return fmt.Errorf("output directory %s exists but is not a directory", outputDir)
+	}
+
+	// Check base manifest path if provided
+	if u.BaseManifestPath != nil {
+		baseManifestPath := *u.BaseManifestPath
+		if !filepath.IsAbs(baseManifestPath) {
+			baseManifestPath = filepath.Join(configDir, baseManifestPath)
+		}
+
+		if _, err := os.Stat(baseManifestPath); err != nil {
+			return fmt.Errorf("baseManifestPath %s does not exist or cannot be accessed: %w", baseManifestPath, err)
+		}
+	}
+
+	// Check that we have at least one value
+	if len(u.Values) == 0 {
+		return fmt.Errorf("unit must contain at least one value")
+	}
+
+	// Validate each value
+	for i, value := range u.Values {
+		if err := value.Validate(); err != nil {
+			return fmt.Errorf("validation failed for value %d (%s): %w", i, value.Filename, err)
+		}
+	}
+
+	return nil
+}
+
+// Validate validates a single value configuration
+func (v *Value) Validate() error {
+	if v.Filename == "" {
+		return fmt.Errorf("filename is required")
+	}
+
+	if v.Metadata.Name == "" {
+		return fmt.Errorf("metadata.name is required")
+	}
+
+	if v.Spec.Schedule == "" {
+		return fmt.Errorf("spec.schedule is required")
+	}
+
+	return nil
 }

@@ -2,7 +2,7 @@ units:
   - outputDirectory: "./output"  # Relative to config.yaml location
     apiVersion: "v1alpha1"
     kustomize:
-      update-resources: true
+      updateResources: true
     values:
       - filename: "backup-job"
         metadata:

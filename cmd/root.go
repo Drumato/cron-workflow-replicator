@@ -36,6 +36,12 @@ func New() *cobra.Command {
 			// Extract config directory for relative path calculations
 			configDir := filepath.Dir(configFilePath)
 
+			// Validate configuration before running
+			if err := cfg.ValidateConfig(configDir); err != nil {
+				slog.Error("Configuration validation failed", "error", err)
+				return err
+			}
+
 			r := runner.New(slog.Default())
 			if err := r.Run(cmd.Context(), cfg, configDir); err != nil {
 				return err

@@ -59,12 +59,13 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config, configDir string) e
 	r.logger.Info("Runner started")
 
 	r.logger.DebugContext(ctx, "Configuration", slog.Any("config", cfg))
-	for _, unit := range cfg.Units {
+	for i, unit := range cfg.Units {
 		if err := r.processUnit(ctx, unit, configDir); err != nil {
-			return err
+			return fmt.Errorf("failed to process unit %d: %w", i, err)
 		}
 	}
 
+	r.logger.Info("Runner completed successfully")
 	return nil
 }
 
@@ -75,10 +76,12 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 	// Load base CronWorkflow from manifest if provided
 	baseCronWorkflow, err := unit.LoadBaseCronWorkflow(r.fileReader, configDir)
 	if err != nil {
+		r.logger.Error("Failed to load base CronWorkflow", "error", err)
 		return fmt.Errorf("failed to load base CronWorkflow: %w", err)
 	}
 
 	if err := r.fsConnector.MkdirAll(absoluteOutputDir, 0o755); err != nil {
+		r.logger.Error("Failed to create output directory", "directory", absoluteOutputDir, "error", err)
 		return fmt.Errorf("failed to create output directory %s: %w", absoluteOutputDir, err)
 	}
 
@@ -101,6 +104,7 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 
 		f, err := r.fsConnector.OpenFile(outputYAMLPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
+			r.logger.Error("Failed to open output file", "file", outputYAMLPath, "error", err)
 			return fmt.Errorf("failed to open output file %s: %w", outputYAMLPath, err)
 		}
 
@@ -115,6 +119,7 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 
 		out, err := kyaml.Marshal(cw)
 		if err != nil {
+			r.logger.Error("Failed to marshal cronworkflow to YAML", "file", outputYAMLPath, "error", err)
 			return fmt.Errorf("failed to marshal cronworkflow to yaml for file %s: %w", outputYAMLPath, err)
 		}
 

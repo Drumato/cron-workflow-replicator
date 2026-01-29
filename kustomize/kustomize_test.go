@@ -8,6 +8,7 @@ import (
 	"github.com/drumato/cron-workflow-replicator/filesystem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/kustomize/api/types"
 	kyaml "sigs.k8s.io/yaml"
 )
 
@@ -29,12 +30,12 @@ func TestManager_UpdateKustomization_NewFile(t *testing.T) {
 	data, err := fs.ReadFile(kustomizationPath)
 	require.NoError(t, err)
 
-	var kustomization Kustomization
+	var kustomization types.Kustomization
 	err = kyaml.Unmarshal(data, &kustomization)
 	require.NoError(t, err)
 
-	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.APIVersion)
-	assert.Equal(t, "Kustomization", kustomization.Kind)
+	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.TypeMeta.APIVersion)
+	assert.Equal(t, "Kustomization", kustomization.TypeMeta.Kind)
 	assert.Contains(t, kustomization.Resources, "backup-job.yaml")
 	assert.Contains(t, kustomization.Resources, "cleanup-job.yaml")
 	assert.Len(t, kustomization.Resources, 2)
@@ -48,9 +49,11 @@ func TestManager_UpdateKustomization_ExistingFile(t *testing.T) {
 	kustomizationPath := filepath.Join(outputDir, "kustomization.yaml")
 
 	// Create existing kustomization.yaml
-	existingKustomization := Kustomization{
-		APIVersion: "kustomize.config.k8s.io/v1beta1",
-		Kind:       "Kustomization",
+	existingKustomization := types.Kustomization{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "kustomize.config.k8s.io/v1beta1",
+			Kind:       "Kustomization",
+		},
 		Resources:  []string{"existing-job.yaml"},
 	}
 	existingData, err := kyaml.Marshal(existingKustomization)
@@ -70,12 +73,12 @@ func TestManager_UpdateKustomization_ExistingFile(t *testing.T) {
 	data, err := fs.ReadFile(kustomizationPath)
 	require.NoError(t, err)
 
-	var kustomization Kustomization
+	var kustomization types.Kustomization
 	err = kyaml.Unmarshal(data, &kustomization)
 	require.NoError(t, err)
 
-	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.APIVersion)
-	assert.Equal(t, "Kustomization", kustomization.Kind)
+	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.TypeMeta.APIVersion)
+	assert.Equal(t, "Kustomization", kustomization.TypeMeta.Kind)
 	assert.Contains(t, kustomization.Resources, "existing-job.yaml")
 	assert.Contains(t, kustomization.Resources, "backup-job.yaml")
 	assert.Contains(t, kustomization.Resources, "cleanup-job.yaml")
@@ -90,9 +93,11 @@ func TestManager_UpdateKustomization_NoDuplicates(t *testing.T) {
 	kustomizationPath := filepath.Join(outputDir, "kustomization.yaml")
 
 	// Create existing kustomization.yaml with some resources
-	existingKustomization := Kustomization{
-		APIVersion: "kustomize.config.k8s.io/v1beta1",
-		Kind:       "Kustomization",
+	existingKustomization := types.Kustomization{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "kustomize.config.k8s.io/v1beta1",
+			Kind:       "Kustomization",
+		},
 		Resources:  []string{"backup-job.yaml", "existing-job.yaml"},
 	}
 	existingData, err := kyaml.Marshal(existingKustomization)
@@ -112,7 +117,7 @@ func TestManager_UpdateKustomization_NoDuplicates(t *testing.T) {
 	data, err := fs.ReadFile(kustomizationPath)
 	require.NoError(t, err)
 
-	var kustomization Kustomization
+	var kustomization types.Kustomization
 	err = kyaml.Unmarshal(data, &kustomization)
 	require.NoError(t, err)
 
@@ -154,7 +159,7 @@ func TestManager_UpdateKustomization_FilenamesOnly(t *testing.T) {
 	data, err := fs.ReadFile(kustomizationPath)
 	require.NoError(t, err)
 
-	var kustomization Kustomization
+	var kustomization types.Kustomization
 	err = kyaml.Unmarshal(data, &kustomization)
 	require.NoError(t, err)
 
@@ -311,13 +316,13 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 					data, readErr := fs.ReadFile(kustomizationPath)
 					assert.NoError(t, readErr)
 
-					var result Kustomization
+					var result types.Kustomization
 					unmarshalErr := kyaml.Unmarshal(data, &result)
 					assert.NoError(t, unmarshalErr)
 
 					// Verify required fields are set
-					assert.Equal(t, "kustomize.config.k8s.io/v1beta1", result.APIVersion)
-					assert.Equal(t, "Kustomization", result.Kind)
+					assert.Equal(t, "kustomize.config.k8s.io/v1beta1", result.TypeMeta.APIVersion)
+					assert.Equal(t, "Kustomization", result.TypeMeta.Kind)
 					assert.NotNil(t, result.Resources)
 				}
 			}
