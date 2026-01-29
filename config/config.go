@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -77,7 +78,9 @@ func (dfr *DefaultFileReader) ReadFile(filename string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() {
-		_ = file.Close() // In read-only context, close errors are typically not actionable
+		if err := file.Close(); err != nil {
+			slog.Warn("failed to close file", "filename", filename, "error", err)
+		}
 	}()
 	return io.ReadAll(file)
 }

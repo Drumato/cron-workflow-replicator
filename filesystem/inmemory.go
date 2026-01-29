@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -29,6 +30,10 @@ func (fs *InMemoryFileSystem) OpenFile(path string, flag int, perm uint32) (File
 }
 
 func (fs *InMemoryFileSystem) MkdirAll(path string, perm uint32) error {
+	// Check if a file exists at this path - that would prevent directory creation
+	if fs.Exists(path) {
+		return fmt.Errorf("cannot create directory %s: file exists", path)
+	}
 	// In-memory filesystem does not need to create directories explicitly.
 	return nil
 }

@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"io"
+	"log/slog"
 	"os"
 )
 
@@ -38,7 +39,9 @@ func (fs *DefaultFileSystem) ReadFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() {
-		_ = file.Close()
+		if err := file.Close(); err != nil {
+			slog.Warn("failed to close file", "path", path, "error", err)
+		}
 	}()
 	return io.ReadAll(file)
 }

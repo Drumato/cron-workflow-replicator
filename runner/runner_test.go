@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -639,3 +640,195 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 		})
 	}
 }
+
+
+// ErrorFileReader simulates various file reading errors
+type ErrorFileReader struct {
+	files  map[string][]byte
+	errors map[string]error
+}
+
+func NewErrorFileReader() *ErrorFileReader {
+	return &ErrorFileReader{
+		files:  make(map[string][]byte),
+		errors: make(map[string]error),
+	}
+}
+
+func (r *ErrorFileReader) AddFile(path string, content []byte) {
+	r.files[path] = content
+}
+
+func (r *ErrorFileReader) AddError(path string, err error) {
+	r.errors[path] = err
+}
+
+func (r *ErrorFileReader) ReadFile(filename string) ([]byte, error) {
+	if err, exists := r.errors[filename]; exists {
+		return nil, err
+	}
+	if content, exists := r.files[filename]; exists {
+		return content, nil
+	}
+	return nil, os.ErrNotExist
+}
+
+func TestRunner_processUnit_ErrorScenarios(t *testing.T) {
+	tests := []struct {
+		name         string
+		setupFS      func(*filesystem.InMemoryFileSystem)
+		setupReader  func(*ErrorFileReader)
+		unit         config.Unit
+		configDir    string
+		expectedErr  string
+	}{
+		{
+			name: "base manifest read error",
+			setupFS: func(fs *filesystem.InMemoryFileSystem) {
+				// FS setup not needed for this error case
+			},
+			setupReader: func(reader *ErrorFileReader) {
+				reader.AddError("/config/base.yaml", errors.New("permission denied"))
+			},
+			unit: config.Unit{
+				BaseManifestPath: func() *string { s := "base.yaml"; return &s }(),
+				OutputDirectory:  "output",
+				APIVersion:       config.APIVersionV1Alpha1,
+				Values: []config.Value{
+					{
+						Filename: "test-workflow",
+						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			},
+			configDir:   "/config",
+			expectedErr: "failed to load base CronWorkflow: failed to read base manifest file /config/base.yaml: permission denied",
+		},
+		{
+			name: "invalid YAML in base manifest",
+			setupFS: func(fs *filesystem.InMemoryFileSystem) {
+				// FS setup not needed for this error case
+			},
+			setupReader: func(reader *ErrorFileReader) {
+				invalidYAML := `apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: invalid
+  invalid-syntax: [
+    - broken yaml`
+				reader.AddFile("/config/bad.yaml", []byte(invalidYAML))
+			},
+			unit: config.Unit{
+				BaseManifestPath: func() *string { s := "bad.yaml"; return &s }(),
+				OutputDirectory:  "output",
+				APIVersion:       config.APIVersionV1Alpha1,
+				Values: []config.Value{
+					{
+						Filename: "test-workflow",
+						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			},
+			configDir:   "/config",
+			expectedErr: "failed to load base CronWorkflow: failed to unmarshal base manifest file /config/bad.yaml",
+		},
+		{
+			name: "output directory creation failure",
+			setupFS: func(fs *filesystem.InMemoryFileSystem) {
+				// Create a file where we want to create a directory
+				err := fs.WriteFile("/config/output", []byte("blocking file"), 0644)
+				require.NoError(t, err)
+			},
+			setupReader: func(reader *ErrorFileReader) {
+				// No base manifest needed for this test
+			},
+			unit: config.Unit{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Values: []config.Value{
+					{
+						Filename: "test-workflow",
+						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			},
+			configDir:   "/config",
+			expectedErr: "failed to create output directory /config/output",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup filesystem
+			fs := filesystem.NewInMemoryFileSystem()
+			if tt.setupFS != nil {
+				tt.setupFS(fs)
+			}
+
+			// Setup error file reader
+			reader := NewErrorFileReader()
+			if tt.setupReader != nil {
+				tt.setupReader(reader)
+			}
+
+			// Create runner
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+			kustomizeManager := kustomize.NewManager(fs)
+			runner := New(logger,
+				WithFileSystem(fs),
+				WithFileReader(reader),
+				WithKustomizeManager(kustomizeManager))
+
+			// Run the test
+			ctx := context.Background()
+			err := runner.processUnit(ctx, tt.unit, tt.configDir)
+
+			if tt.expectedErr != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+			}
+		})
+	}
+}
+
+func TestRunner_Run_ErrorPropagation(t *testing.T) {
+	// Test that errors in individual units propagate properly to the Run method
+	fs := filesystem.NewInMemoryFileSystem()
+	// Create a file where we want to create a directory to simulate filesystem error
+	err := fs.WriteFile("/config/output", []byte("blocking file"), 0644)
+	require.NoError(t, err)
+
+	reader := NewErrorFileReader()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	kustomizeManager := kustomize.NewManager(fs)
+	runner := New(logger,
+		WithFileSystem(fs),
+		WithFileReader(reader),
+		WithKustomizeManager(kustomizeManager))
+
+	cfg := config.Config{
+		Units: []config.Unit{
+			{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Values: []config.Value{
+					{
+						Filename: "test-workflow",
+						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	err = runner.Run(ctx, cfg, "/config")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create output directory")
+}
+
