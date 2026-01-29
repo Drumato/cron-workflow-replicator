@@ -91,10 +91,10 @@ func TestYAMLGeneration_BasicStructure(t *testing.T) {
 
 func TestYAMLGeneration_EmptyValues(t *testing.T) {
 	tests := []struct {
-		name           string
-		cw             *argoworkflowsv1alpha1.CronWorkflow
-		expectPresent  []string
-		expectAbsent   []string
+		name          string
+		cw            *argoworkflowsv1alpha1.CronWorkflow
+		expectPresent []string
+		expectAbsent  []string
 	}{
 		{
 			name: "minimal CronWorkflow",

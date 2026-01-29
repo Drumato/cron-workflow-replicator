@@ -88,12 +88,12 @@ func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string)
 			}
 
 			// Validate the parsed kustomization structure
-			if kustomization.TypeMeta.APIVersion == "" {
-				kustomization.TypeMeta.APIVersion = "kustomize.config.k8s.io/v1beta1"
+			if kustomization.APIVersion == "" {
+				kustomization.APIVersion = "kustomize.config.k8s.io/v1beta1"
 				slog.Info("setting missing apiVersion in existing kustomization.yaml", "path", kustomizationPath)
 			}
-			if kustomization.TypeMeta.Kind == "" {
-				kustomization.TypeMeta.Kind = "Kustomization"
+			if kustomization.Kind == "" {
+				kustomization.Kind = "Kustomization"
 				slog.Info("setting missing kind in existing kustomization.yaml", "path", kustomizationPath)
 			}
 			if kustomization.Resources == nil {

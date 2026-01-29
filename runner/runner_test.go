@@ -385,19 +385,6 @@ func validateCronWorkflowContent(t *testing.T, content []byte) *argoworkflowsv1a
 	return &cw
 }
 
-func validateKustomizationContent(t *testing.T, content []byte) *types.Kustomization {
-	t.Helper()
-	var k types.Kustomization
-	err := kyaml.Unmarshal(content, &k)
-	require.NoError(t, err, "Failed to unmarshal Kustomization YAML")
-
-	// Validate basic required fields
-	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", k.TypeMeta.APIVersion, "Incorrect Kustomization APIVersion")
-	assert.Equal(t, "Kustomization", k.TypeMeta.Kind, "Incorrect Kustomization Kind")
-
-	return &k
-}
-
 func assertCronWorkflowFields(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow, expectedName, expectedNamespace, expectedSchedule string) {
 	t.Helper()
 	if expectedName != "" {
@@ -544,7 +531,7 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 					APIVersion: "kustomize.config.k8s.io/v1beta1",
 					Kind:       "Kustomization",
 				},
-				Resources:  []string{"backup-job.yaml", "cleanup-job.yaml"},
+				Resources: []string{"backup-job.yaml", "cleanup-job.yaml"},
 			},
 			shouldCreateKustomization: true,
 		},
@@ -631,7 +618,7 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 					APIVersion: "kustomize.config.k8s.io/v1beta1",
 					Kind:       "Kustomization",
 				},
-				Resources:  []string{"existing-resource.yaml", "backup-job.yaml"},
+				Resources: []string{"existing-resource.yaml", "backup-job.yaml"},
 			},
 			shouldCreateKustomization: true,
 		},
@@ -650,7 +637,7 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 						APIVersion: "kustomize.config.k8s.io/v1beta1",
 						Kind:       "Kustomization",
 					},
-					Resources:  []string{"existing-resource.yaml"},
+					Resources: []string{"existing-resource.yaml"},
 				}
 				existingData, err := kyaml.Marshal(existingKustomization)
 				require.NoError(t, err)
@@ -691,8 +678,8 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				err = kyaml.Unmarshal(data, &actualKustomization)
 				require.NoError(t, err)
 
-				assert.Equal(t, tt.expectedKustomization.TypeMeta.APIVersion, actualKustomization.TypeMeta.APIVersion)
-				assert.Equal(t, tt.expectedKustomization.TypeMeta.Kind, actualKustomization.TypeMeta.Kind)
+				assert.Equal(t, tt.expectedKustomization.APIVersion, actualKustomization.APIVersion)
+				assert.Equal(t, tt.expectedKustomization.Kind, actualKustomization.Kind)
 				assert.ElementsMatch(t, tt.expectedKustomization.Resources, actualKustomization.Resources)
 			} else {
 				// Verify kustomization.yaml was not created
@@ -1166,9 +1153,9 @@ spec:
 
 	// Validate merged labels (base + override)
 	expectedLabels := map[string]string{
-		"base-label":     "base-value",     // From base
+		"base-label":     "base-value",      // From base
 		"shared-label":   "override-shared", // Overridden
-		"override-label": "override-value", // New
+		"override-label": "override-value",  // New
 	}
 	assertCronWorkflowLabels(t, cw, expectedLabels)
 

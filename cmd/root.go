@@ -25,7 +25,9 @@ func New() *cobra.Command {
 				return err
 			}
 			defer func() {
-				err = f.Close()
+				if closeErr := f.Close(); closeErr != nil {
+					err = closeErr
+				}
 			}()
 
 			cfg := config.Config{}

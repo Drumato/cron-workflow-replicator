@@ -70,9 +70,9 @@ func TestMergeLogic_BasicMerging(t *testing.T) {
 				"new-label":   "new-value",    // New
 			},
 			expectedSpec: argoworkflowsv1alpha1.CronWorkflowSpec{
-				Schedule: "0 6 * * *",          // Overridden
-				Timezone: "Asia/Tokyo",         // From base
-				Suspend:  false,                // From base
+				Schedule: "0 6 * * *",  // Overridden
+				Timezone: "Asia/Tokyo", // From base
+				Suspend:  false,        // From base
 				WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
 					Entrypoint: "custom-entrypoint", // Overridden
 				},
