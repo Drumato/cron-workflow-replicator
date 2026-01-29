@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 )
 
 func TestAPIVersion_GetSchemeGroupVersion(t *testing.T) {
@@ -365,11 +365,11 @@ func TestConfig_ValidateConfig(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name        string
-		config      Config
-		configDir   string
-		setupFiles  func(string) // Function to create necessary files
-		expectError bool
+		name          string
+		config        Config
+		configDir     string
+		setupFiles    func(string) // Function to create necessary files
+		expectError   bool
 		errorContains string
 	}{
 		{
@@ -392,15 +392,17 @@ func TestConfig_ValidateConfig(t *testing.T) {
 			configDir: tempDir,
 			setupFiles: func(dir string) {
 				// Create output directory
-				os.MkdirAll(filepath.Join(dir, "output"), 0755)
+				if err := os.MkdirAll(filepath.Join(dir, "output"), 0755); err != nil {
+					t.Fatalf("Failed to create output directory: %v", err)
+				}
 			},
 			expectError: false,
 		},
 		{
-			name:        "empty units",
-			config:      Config{Units: []Unit{}},
-			configDir:   tempDir,
-			expectError: true,
+			name:          "empty units",
+			config:        Config{Units: []Unit{}},
+			configDir:     tempDir,
+			expectError:   true,
 			errorContains: "must contain at least one unit",
 		},
 		{
@@ -444,7 +446,9 @@ func TestConfig_ValidateConfig(t *testing.T) {
 			},
 			configDir: tempDir,
 			setupFiles: func(dir string) {
-				os.MkdirAll(filepath.Join(dir, "output"), 0755)
+				if err := os.MkdirAll(filepath.Join(dir, "output"), 0755); err != nil {
+					t.Fatalf("Failed to create output directory: %v", err)
+				}
 			},
 			expectError:   true,
 			errorContains: "does not exist or cannot be accessed",
@@ -490,11 +494,11 @@ func TestUnit_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
-		name        string
-		unit        Unit
-		configDir   string
-		setupFiles  func(string)
-		expectError bool
+		name          string
+		unit          Unit
+		configDir     string
+		setupFiles    func(string)
+		expectError   bool
 		errorContains string
 	}{
 		{
@@ -513,8 +517,12 @@ func TestUnit_Validate(t *testing.T) {
 			},
 			configDir: tempDir,
 			setupFiles: func(dir string) {
-				os.MkdirAll(filepath.Join(dir, "output"), 0755)
-				os.WriteFile(filepath.Join(dir, "base.yaml"), []byte("apiVersion: argoproj.io/v1alpha1\nkind: CronWorkflow\n"), 0644)
+				if err := os.MkdirAll(filepath.Join(dir, "output"), 0755); err != nil {
+					t.Fatalf("Failed to create output directory: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "base.yaml"), []byte("apiVersion: argoproj.io/v1alpha1\nkind: CronWorkflow\n"), 0644); err != nil {
+					t.Fatalf("Failed to create base.yaml: %v", err)
+				}
 			},
 			expectError: false,
 		},
@@ -534,7 +542,9 @@ func TestUnit_Validate(t *testing.T) {
 			configDir: tempDir,
 			setupFiles: func(dir string) {
 				// Create a file instead of directory
-				os.WriteFile(filepath.Join(dir, "not-a-directory"), []byte("file content"), 0644)
+				if err := os.WriteFile(filepath.Join(dir, "not-a-directory"), []byte("file content"), 0644); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
 			},
 			expectError:   true,
 			errorContains: "exists but is not a directory",
@@ -563,9 +573,9 @@ func TestUnit_Validate(t *testing.T) {
 
 func TestValue_Validate(t *testing.T) {
 	tests := []struct {
-		name        string
-		value       Value
-		expectError bool
+		name          string
+		value         Value
+		expectError   bool
 		errorContains string
 	}{
 		{
@@ -594,8 +604,7 @@ func TestValue_Validate(t *testing.T) {
 				Metadata: metav1.ObjectMeta{Name: ""},
 				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
 			},
-			expectError:   true,
-			errorContains: "metadata.name is required",
+			expectError: false, // Now valid for minimal configurations
 		},
 		{
 			name: "missing schedule",
@@ -604,8 +613,7 @@ func TestValue_Validate(t *testing.T) {
 				Metadata: metav1.ObjectMeta{Name: "test"},
 				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: ""},
 			},
-			expectError:   true,
-			errorContains: "spec.schedule is required",
+			expectError: false, // Now valid for minimal configurations
 		},
 	}
 

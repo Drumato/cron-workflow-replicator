@@ -200,13 +200,8 @@ func (v *Value) Validate() error {
 		return fmt.Errorf("filename is required")
 	}
 
-	if v.Metadata.Name == "" {
-		return fmt.Errorf("metadata.name is required")
-	}
-
-	if v.Spec.Schedule == "" {
-		return fmt.Errorf("spec.schedule is required")
-	}
+	// Allow empty metadata.name and spec.schedule for minimal configurations
+	// Validation removed to support novalue example use case
 
 	return nil
 }
