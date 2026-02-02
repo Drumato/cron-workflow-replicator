@@ -11,7 +11,7 @@ import (
 	"github.com/drumato/cron-workflow-replicator/filesystem"
 	"github.com/drumato/cron-workflow-replicator/kustomize"
 	"github.com/drumato/cron-workflow-replicator/structutil"
-	kyaml "sigs.k8s.io/yaml"
+	"github.com/drumato/cron-workflow-replicator/types"
 )
 
 type Runner struct {
@@ -117,7 +117,8 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 		// Merge spec from the value
 		structutil.MergeStruct(&cw.Spec, &value.Spec)
 
-		out, err := kyaml.Marshal(cw)
+		cleanCW := types.NewCleanCronWorkflow(&cw)
+		out, err := cleanCW.ToYAML()
 		if err != nil {
 			r.logger.Error("Failed to marshal cronworkflow to YAML", "file", outputYAMLPath, "error", err)
 			return fmt.Errorf("failed to marshal cronworkflow to yaml for file %s: %w", outputYAMLPath, err)

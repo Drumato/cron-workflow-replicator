@@ -6,6 +6,7 @@ import (
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
+	"github.com/drumato/cron-workflow-replicator/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -385,4 +386,170 @@ func TestYAMLGeneration_FieldOrdering(t *testing.T) {
 	assert.Less(t, apiVersionPos, kindPos, "apiVersion should come before kind")
 	assert.Less(t, kindPos, metadataPos, "kind should come before metadata")
 	assert.Less(t, metadataPos, specPos, "metadata should come before spec")
+}
+
+func TestYAMLGeneration_CleanOutput(t *testing.T) {
+	tests := []struct {
+		name           string
+		cw             *argoworkflowsv1alpha1.CronWorkflow
+		expectAbsent   []string
+		expectPresent  []string
+	}{
+		{
+			name: "minimal CronWorkflow excludes status and creationTimestamp",
+			cw: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			expectAbsent: []string{
+				"status:",
+				"creationTimestamp:",
+				"active:",
+				"conditions:",
+				"failed:",
+				"lastScheduledTime:",
+				"phase:",
+				"succeeded:",
+			},
+			expectPresent: []string{
+				"apiVersion: argoproj.io/v1alpha1",
+				"kind: CronWorkflow",
+			},
+		},
+		{
+			name: "CronWorkflow with metadata excludes creationTimestamp but keeps other fields",
+			cw: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "clean-workflow",
+					Namespace: "default",
+					Labels: map[string]string{
+						"app": "test",
+					},
+					Annotations: map[string]string{
+						"description": "test workflow",
+					},
+					// creationTimestamp would normally be set here
+				},
+				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+					Schedule: "0 2 * * *",
+				},
+			},
+			expectAbsent: []string{
+				"status:",
+				"creationTimestamp:",
+				"active:",
+				"conditions:",
+				"failed:",
+				"lastScheduledTime:",
+				"phase:",
+				"succeeded:",
+			},
+			expectPresent: []string{
+				"apiVersion: argoproj.io/v1alpha1",
+				"kind: CronWorkflow",
+				"name: clean-workflow",
+				"namespace: default",
+				"labels:",
+				"app: test",
+				"annotations:",
+				"description: test workflow",
+				"schedule: 0 2 * * *",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Generate YAML using the new clean marshalling
+			cleanCW := types.NewCleanCronWorkflow(tt.cw)
+			yamlBytes, err := cleanCW.ToYAML()
+			require.NoError(t, err, "Failed to marshal CleanCronWorkflow to YAML")
+
+			yamlStr := string(yamlBytes)
+
+			// Check expected absent fields
+			for _, notExpected := range tt.expectAbsent {
+				assert.NotContains(t, yamlStr, notExpected, "Expected '%s' to be absent from clean YAML output", notExpected)
+			}
+
+			// Check expected present fields
+			for _, expected := range tt.expectPresent {
+				assert.Contains(t, yamlStr, expected, "Expected '%s' to be present in clean YAML output", expected)
+			}
+
+			// Validate generated YAML is parseable
+			var parsed argoworkflowsv1alpha1.CronWorkflow
+			err = kyaml.Unmarshal(yamlBytes, &parsed)
+			require.NoError(t, err, "Clean YAML should be parseable")
+
+			// Validate essential fields are preserved
+			assert.Equal(t, tt.cw.APIVersion, parsed.APIVersion)
+			assert.Equal(t, tt.cw.Kind, parsed.Kind)
+			assert.Equal(t, tt.cw.Name, parsed.Name)
+			assert.Equal(t, tt.cw.Namespace, parsed.Namespace)
+			assert.Equal(t, tt.cw.Labels, parsed.Labels)
+			assert.Equal(t, tt.cw.Annotations, parsed.Annotations)
+			assert.Equal(t, tt.cw.Spec.Schedule, parsed.Spec.Schedule)
+		})
+	}
+}
+
+func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
+	// Compare clean output with original kyaml.Marshal output
+	cw := &argoworkflowsv1alpha1.CronWorkflow{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "argoproj.io/v1alpha1",
+			Kind:       "CronWorkflow",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "comparison-workflow",
+			Namespace: "default",
+		},
+		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+			Schedule: "0 0 * * *",
+		},
+	}
+
+	// Generate original YAML
+	originalYaml, err := kyaml.Marshal(cw)
+	require.NoError(t, err)
+
+	// Generate clean YAML
+	cleanCW := types.NewCleanCronWorkflow(cw)
+	cleanYaml, err := cleanCW.ToYAML()
+	require.NoError(t, err)
+
+	originalStr := string(originalYaml)
+	cleanStr := string(cleanYaml)
+
+	// Original should contain problematic fields
+	assert.Contains(t, originalStr, "status:", "Original YAML should contain status field")
+	assert.Contains(t, originalStr, "creationTimestamp:", "Original YAML should contain creationTimestamp")
+
+	// Clean should not contain problematic fields
+	assert.NotContains(t, cleanStr, "status:", "Clean YAML should not contain status field")
+	assert.NotContains(t, cleanStr, "creationTimestamp:", "Clean YAML should not contain creationTimestamp")
+
+	// Both should contain essential fields
+	essentialFields := []string{
+		"apiVersion: argoproj.io/v1alpha1",
+		"kind: CronWorkflow",
+		"name: comparison-workflow",
+		"namespace: default",
+		"schedule: 0 0 * * *",
+	}
+
+	for _, field := range essentialFields {
+		assert.Contains(t, originalStr, field, "Original YAML should contain: %s", field)
+		assert.Contains(t, cleanStr, field, "Clean YAML should contain: %s", field)
+	}
+
+	// Clean YAML should be significantly shorter
+	assert.Less(t, len(cleanStr), len(originalStr), "Clean YAML should be shorter than original")
 }
