@@ -52,6 +52,7 @@ type Unit struct {
 	APIVersion       APIVersion       `yaml:"apiVersion"`
 	Kustomize        *KustomizeConfig `yaml:"kustomize"`
 	Values           []Value          `yaml:"values"`
+	Indent           *int             `yaml:"indent,omitempty"`
 }
 
 type KustomizeConfig struct {
@@ -118,6 +119,14 @@ func (u *Unit) LoadBaseCronWorkflow(fileReader FileReader, configDir string) (*a
 	return &baseCronWorkflow, nil
 }
 
+// GetIndent returns the indent value for YAML generation, defaulting to 2 if not set
+func (u *Unit) GetIndent() int {
+	if u.Indent == nil {
+		return 2 // Default indent is 2 spaces (Kubernetes standard)
+	}
+	return *u.Indent
+}
+
 // ValidateConfig validates the configuration settings
 func (c *Config) ValidateConfig(configDir string) error {
 	if len(c.Units) == 0 {
@@ -176,6 +185,13 @@ func (u *Unit) Validate(configDir string) error {
 
 		if _, err := os.Stat(baseManifestPath); err != nil {
 			return fmt.Errorf("baseManifestPath %s does not exist or cannot be accessed: %w", baseManifestPath, err)
+		}
+	}
+
+	// Validate indent if provided
+	if u.Indent != nil {
+		if *u.Indent < 1 || *u.Indent > 8 {
+			return fmt.Errorf("indent must be between 1 and 8, got %d", *u.Indent)
 		}
 	}
 

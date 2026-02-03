@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 
@@ -46,8 +47,13 @@ func NewCleanCronWorkflow(cw *argoworkflowsv1alpha1.CronWorkflow) *CleanCronWork
 	return clean
 }
 
-// ToYAML はCleanCronWorkflowをYAMLバイト列に変換します
+// ToYAML はCleanCronWorkflowをYAMLバイト列に変換します（デフォルトは2スペースインデント）
 func (c *CleanCronWorkflow) ToYAML() ([]byte, error) {
+	return c.ToYAMLWithIndent(2)
+}
+
+// ToYAMLWithIndent はCleanCronWorkflowを指定されたインデントでYAMLバイト列に変換します
+func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 	// カスタムマップを作成して正しいキー名にする
 	data := make(map[string]interface{})
 
@@ -94,7 +100,20 @@ func (c *CleanCronWorkflow) ToYAML() ([]byte, error) {
 		data["spec"] = cleanSpecMap
 	}
 
-	return yaml.Marshal(data)
+	// カスタムインデントでYAMLを生成
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(indent)
+
+	if err := encoder.Encode(data); err != nil {
+		return nil, fmt.Errorf("failed to encode YAML with custom indent: %w", err)
+	}
+
+	if err := encoder.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close YAML encoder: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // removeEmptyFields は空のフィールドを再帰的に除外します

@@ -571,6 +571,140 @@ func TestUnit_Validate(t *testing.T) {
 	}
 }
 
+func TestUnit_GetIndent(t *testing.T) {
+	tests := []struct {
+		name     string
+		indent   *int
+		expected int
+	}{
+		{
+			name:     "default indent when nil",
+			indent:   nil,
+			expected: 2,
+		},
+		{
+			name:     "custom indent 1",
+			indent:   func() *int { i := 1; return &i }(),
+			expected: 1,
+		},
+		{
+			name:     "custom indent 4",
+			indent:   func() *int { i := 4; return &i }(),
+			expected: 4,
+		},
+		{
+			name:     "custom indent 8",
+			indent:   func() *int { i := 8; return &i }(),
+			expected: 8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unit := Unit{
+				Indent: tt.indent,
+			}
+			result := unit.GetIndent()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestUnit_Validate_IndentValidation(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name          string
+		indent        *int
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "no indent specified (valid)",
+			indent:      nil,
+			expectError: false,
+		},
+		{
+			name:        "valid indent 1",
+			indent:      func() *int { i := 1; return &i }(),
+			expectError: false,
+		},
+		{
+			name:        "valid indent 2",
+			indent:      func() *int { i := 2; return &i }(),
+			expectError: false,
+		},
+		{
+			name:        "valid indent 4",
+			indent:      func() *int { i := 4; return &i }(),
+			expectError: false,
+		},
+		{
+			name:        "valid indent 8",
+			indent:      func() *int { i := 8; return &i }(),
+			expectError: false,
+		},
+		{
+			name:          "invalid indent 0",
+			indent:        func() *int { i := 0; return &i }(),
+			expectError:   true,
+			errorContains: "indent must be between 1 and 8, got 0",
+		},
+		{
+			name:          "invalid indent negative",
+			indent:        func() *int { i := -1; return &i }(),
+			expectError:   true,
+			errorContains: "indent must be between 1 and 8, got -1",
+		},
+		{
+			name:          "invalid indent too large",
+			indent:        func() *int { i := 9; return &i }(),
+			expectError:   true,
+			errorContains: "indent must be between 1 and 8, got 9",
+		},
+		{
+			name:          "invalid indent extremely large",
+			indent:        func() *int { i := 100; return &i }(),
+			expectError:   true,
+			errorContains: "indent must be between 1 and 8, got 100",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup test environment
+			outputDir := filepath.Join(tempDir, "output")
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				t.Fatalf("Failed to create output directory: %v", err)
+			}
+
+			unit := Unit{
+				OutputDirectory: "output",
+				APIVersion:      APIVersionV1Alpha1,
+				Indent:          tt.indent,
+				Values: []Value{
+					{
+						Filename: "test-job",
+						Metadata: metav1.ObjectMeta{Name: "test"},
+						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+					},
+				},
+			}
+
+			err := unit.Validate(tempDir)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestValue_Validate(t *testing.T) {
 	tests := []struct {
 		name          string

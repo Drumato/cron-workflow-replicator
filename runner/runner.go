@@ -118,7 +118,7 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 		structutil.MergeStruct(&cw.Spec, &value.Spec)
 
 		cleanCW := types.NewCleanCronWorkflow(&cw)
-		out, err := cleanCW.ToYAML()
+		out, err := cleanCW.ToYAMLWithIndent(unit.GetIndent())
 		if err != nil {
 			r.logger.Error("Failed to marshal cronworkflow to YAML", "file", outputYAMLPath, "error", err)
 			return fmt.Errorf("failed to marshal cronworkflow to yaml for file %s: %w", outputYAMLPath, err)
