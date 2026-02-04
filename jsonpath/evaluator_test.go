@@ -167,13 +167,6 @@ func TestPathEvaluator_ApplyPaths(t *testing.T) {
 				// JSON unmarshaling converts numbers to their appropriate types after struct marshaling
 				// In this case, they should be converted properly by the CronWorkflow struct
 				// Let's check if the values are correctly set, regardless of the specific type
-				if cw.Spec.WorkflowSpec.Parallelism != nil {
-					// The value might be stored differently due to JSON conversion
-					// For now, let's skip the exact type check and focus on basic functionality
-				}
-				if cw.Spec.WorkflowSpec.ActiveDeadlineSeconds != nil {
-					// Same here - focus on the presence of the field rather than exact type
-				}
 			},
 		},
 		{
@@ -509,7 +502,6 @@ func TestPathEvaluator_ArrayOperations(t *testing.T) {
 		})
 	}
 }
-
 
 func TestPathEvaluator_ErrorHandling(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
