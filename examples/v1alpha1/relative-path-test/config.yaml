@@ -4,10 +4,12 @@ units:
     baseManifestPath: "manifests/base.yaml"  # Nested relative path
     values:
       - filename: "test-workflow"
-        metadata:
-          name: "test-workflow"
-          namespace: "test"
-          labels:
-            environment: "test"
-        spec:
-          schedule: "0 12 * * *"  # Override schedule
+        paths:
+          - path: "$.metadata.name"
+            value: "test-workflow"
+          - path: "$.metadata.namespace"
+            value: "test"
+          - path: "$.metadata.labels.environment"
+            value: "test"
+          - path: "$.spec.schedule"
+            value: "0 12 * * *"  # Override schedule

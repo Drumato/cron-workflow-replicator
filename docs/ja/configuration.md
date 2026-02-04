@@ -136,6 +136,99 @@ units:
     # カスタム値をテンプレートに注入可能
 ```
 
+## JSONPathを使った値の設定
+
+### 新しいJSONPathベース設定
+
+最新バージョンでは、JSONPath式を使用して生成されるCronWorkflowに値を設定します。これにより、生成されるマニフェストを設定する際に、より柔軟性と精度を提供します。
+
+### 基本的なJSONPath構造
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    baseManifestPath: "./base-manifest.yaml"
+    values:
+      - filename: "example-workflow"
+        paths:
+          - path: "$.metadata.name"
+            value: "my-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "default"
+          - path: "$.spec.schedule"
+            value: "0 0 * * *"
+```
+
+### JSONPath式のルール
+
+- すべてのパスは `$`（ルート要素）で始まる必要があります
+- ネストしたフィールドには ドット記法を使用: `$.metadata.name`
+- 配列のインデックス指定もサポート: `$.spec.workflowSpec.templates[0].name`
+- パスが有効なJSONPath式であることが検証されます
+- 空の `paths` 配列も許可されます（カスタマイズしないテンプレートに有用）
+
+### 一般的なJSONPathの例
+
+```yaml
+# メタデータフィールドの設定
+- path: "$.metadata.name"
+  value: "my-cronworkflow"
+- path: "$.metadata.namespace"
+  value: "production"
+- path: "$.metadata.labels.app"
+  value: "data-processor"
+
+# specフィールドの設定
+- path: "$.spec.schedule"
+  value: "0 2 * * *"
+- path: "$.spec.concurrencyPolicy"
+  value: "Forbid"
+
+# ネストしたworkflow specフィールドの設定
+- path: "$.spec.workflowSpec.entrypoint"
+  value: "main"
+- path: "$.spec.workflowSpec.templates[0].name"
+  value: "worker-task"
+
+# 引数とパラメータの設定
+- path: "$.spec.workflowSpec.arguments.parameters[0].name"
+  value: "input-file"
+- path: "$.spec.workflowSpec.arguments.parameters[0].value"
+  value: "/data/input.csv"
+```
+
+### 古い形式からの移行
+
+**古い形式（サポートされなくなりました）:**
+```yaml
+# 古い形式 - もう動作しません
+values:
+  - filename: "example"
+    metadata:
+      name: "my-cronworkflow"
+    spec:
+      schedule: "0 0 * * *"
+```
+
+**新しい形式:**
+```yaml
+# 新しい形式 - 現在の形式
+values:
+  - filename: "example"
+    paths:
+      - path: "$.metadata.name"
+        value: "my-cronworkflow"
+      - path: "$.spec.schedule"
+        value: "0 0 * * *"
+```
+
+### JSONPathの利点
+
+- **精度**: マニフェストの他の部分に影響を与えることなく、正確なフィールドをターゲットにできます
+- **柔軟性**: 深くネストしたフィールドを含め、生成されるYAMLの任意のフィールドを設定可能
+- **バリデーション**: JSONPath式は解析時に検証されます
+- **明確性**: 明示的なパス宣言により、設定が自己文書化されます
+
 ## 例
 
 完全な設定例については `examples/` ディレクトリを確認してください：

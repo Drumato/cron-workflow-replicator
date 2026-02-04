@@ -5,36 +5,50 @@ units:
       updateResources: true
     values:
       - filename: "backup-job"
-        metadata:
-          name: "backup-cronworkflow"
-          namespace: "default"
-          labels:
-            app: "backup"
-            team: "platform"
-        spec:
-          schedule: "0 2 * * *"
-          workflowSpec:
-            entrypoint: "backup"
-            templates:
-            - name: "backup"
-              container:
-                image: "backup-tool:latest"
-                command: ["backup"]
-                args: ["--target", "database"]
+        paths:
+          - path: "$.metadata.name"
+            value: "backup-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "default"
+          - path: "$.metadata.labels.app"
+            value: "backup"
+          - path: "$.metadata.labels.team"
+            value: "platform"
+          - path: "$.spec.schedule"
+            value: "0 2 * * *"
+          - path: "$.spec.workflowSpec.entrypoint"
+            value: "backup"
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "backup"
+          - path: "$.spec.workflowSpec.templates[0].container.image"
+            value: "backup-tool:latest"
+          - path: "$.spec.workflowSpec.templates[0].container.command[0]"
+            value: "backup"
+          - path: "$.spec.workflowSpec.templates[0].container.args[0]"
+            value: "--target"
+          - path: "$.spec.workflowSpec.templates[0].container.args[1]"
+            value: "database"
       - filename: "cleanup-job"
-        metadata:
-          name: "cleanup-cronworkflow"
-          namespace: "default"
-          labels:
-            app: "cleanup"
-            team: "platform"
-        spec:
-          schedule: "0 4 * * *"
-          workflowSpec:
-            entrypoint: "cleanup"
-            templates:
-            - name: "cleanup"
-              container:
-                image: "cleanup-tool:latest"
-                command: ["cleanup"]
-                args: ["--older-than", "30d"]
+        paths:
+          - path: "$.metadata.name"
+            value: "cleanup-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "default"
+          - path: "$.metadata.labels.app"
+            value: "cleanup"
+          - path: "$.metadata.labels.team"
+            value: "platform"
+          - path: "$.spec.schedule"
+            value: "0 4 * * *"
+          - path: "$.spec.workflowSpec.entrypoint"
+            value: "cleanup"
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "cleanup"
+          - path: "$.spec.workflowSpec.templates[0].container.image"
+            value: "cleanup-tool:latest"
+          - path: "$.spec.workflowSpec.templates[0].container.command[0]"
+            value: "cleanup"
+          - path: "$.spec.workflowSpec.templates[0].container.args[0]"
+            value: "--older-than"
+          - path: "$.spec.workflowSpec.templates[0].container.args[1]"
+            value: "30d"

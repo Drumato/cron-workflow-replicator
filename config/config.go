@@ -59,10 +59,14 @@ type KustomizeConfig struct {
 	UpdateResources bool `yaml:"updateResources"`
 }
 
+type PathValue struct {
+	Path  string `yaml:"path"`  // JSONPath式
+	Value string `yaml:"value"` // 設定する文字列値
+}
+
 type Value struct {
-	Filename string                                 `yaml:"filename"`
-	Metadata metav1.ObjectMeta                      `yaml:"metadata"`
-	Spec     argoworkflowsv1alpha1.CronWorkflowSpec `yaml:"spec"`
+	Filename string      `yaml:"filename"`
+	Paths    []PathValue `yaml:"paths,omitempty"`
 }
 
 // FileReader interface for reading files (allows dependency injection for testing)
@@ -216,8 +220,27 @@ func (v *Value) Validate() error {
 		return fmt.Errorf("filename is required")
 	}
 
-	// Allow empty metadata.name and spec.schedule for minimal configurations
-	// Validation removed to support novalue example use case
+	// Validate each path value
+	for i, pv := range v.Paths {
+		if err := pv.Validate(); err != nil {
+			return fmt.Errorf("validation failed for path %d: %w", i, err)
+		}
+	}
 
+	return nil
+}
+
+// Validate validates a single path-value pair
+func (pv *PathValue) Validate() error {
+	if pv.Path == "" {
+		return fmt.Errorf("path is required")
+	}
+
+	// JSONPath expression should start with '$'
+	if len(pv.Path) == 0 || pv.Path[0] != '$' {
+		return fmt.Errorf("path must be a valid JSONPath expression starting with '$', got: %s", pv.Path)
+	}
+
+	// Value can be empty string, so no validation needed for Value field
 	return nil
 }

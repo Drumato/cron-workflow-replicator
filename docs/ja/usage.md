@@ -77,6 +77,93 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 
 **動作**: CronWorkflowマニフェストを生成し、生成されたすべてのリソースを含むkustomization.yamlファイルを自動的に作成/更新します（`examples/v1alpha1/kustomize/output/` に出力）
 
+## JSONPathを使った設定例
+
+### 例1: 本番環境バックアップワークフロー
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    values:
+      - filename: "production-backup"
+        paths:
+          - path: "$.metadata.name"
+            value: "production-daily-backup"
+          - path: "$.metadata.namespace"
+            value: "production"
+          - path: "$.metadata.labels.app"
+            value: "backup-service"
+          - path: "$.metadata.labels.environment"
+            value: "production"
+          - path: "$.spec.schedule"
+            value: "0 2 * * *"  # 毎日午前2時
+          - path: "$.spec.concurrencyPolicy"
+            value: "Forbid"
+          - path: "$.spec.successfulJobsHistoryLimit"
+            value: "3"
+          - path: "$.spec.failedJobsHistoryLimit"
+            value: "1"
+```
+
+### 例2: マルチ環境データ処理
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    values:
+      - filename: "data-processing-staging"
+        paths:
+          - path: "$.metadata.name"
+            value: "data-processing-staging"
+          - path: "$.metadata.namespace"
+            value: "staging"
+          - path: "$.spec.schedule"
+            value: "0 */4 * * *"  # 4時間おき
+          - path: "$.spec.workflowSpec.arguments.parameters[0].value"
+            value: "s3://staging-data-bucket/"
+      - filename: "data-processing-production"
+        paths:
+          - path: "$.metadata.name"
+            value: "data-processing-production"
+          - path: "$.metadata.namespace"
+            value: "production"
+          - path: "$.spec.schedule"
+            value: "0 1 * * *"   # 毎日午前1時
+          - path: "$.spec.workflowSpec.arguments.parameters[0].value"
+            value: "s3://production-data-bucket/"
+```
+
+### 例3: 複雑なネスト設定
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    baseManifestPath: "./templates/complex-workflow.yaml"
+    values:
+      - filename: "ml-training-pipeline"
+        paths:
+          - path: "$.metadata.name"
+            value: "weekly-ml-training"
+          - path: "$.spec.schedule"
+            value: "0 0 * * 0"  # 毎週日曜日
+          - path: "$.spec.workflowSpec.templates[0].container.env[0].value"
+            value: "production"
+          - path: "$.spec.workflowSpec.templates[0].container.resources.requests.memory"
+            value: "8Gi"
+          - path: "$.spec.workflowSpec.templates[0].container.resources.requests.cpu"
+            value: "4"
+          - path: "$.spec.workflowSpec.arguments.parameters[0].name"
+            value: "model-version"
+          - path: "$.spec.workflowSpec.arguments.parameters[0].value"
+            value: "v2.1.0"
+```
+
+これらの例では以下を示しています：
+- **環境固有設定**: ステージング環境と本番環境での異なるネームスペース、スケジュール、パラメータ
+- **リソース管理**: メモリとCPUリクエストの設定
+- **複雑なパスターゲティング**: コンテナ環境変数や配列要素など深くネストしたフィールドへのアクセス
+- **パラメータ注入**: ワークフローの引数とパラメータの動的設定
+
 ## ソースからのビルド
 
 ローカルでバイナリをビルドする場合：

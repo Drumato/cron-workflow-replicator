@@ -77,6 +77,93 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 
 **What it does**: Generates CronWorkflow manifests and automatically creates/updates a kustomization.yaml file to include all generated resources (outputs to `examples/v1alpha1/kustomize/output/`)
 
+## Configuration Examples with JSONPath
+
+### Example 1: Production Backup Workflow
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    values:
+      - filename: "production-backup"
+        paths:
+          - path: "$.metadata.name"
+            value: "production-daily-backup"
+          - path: "$.metadata.namespace"
+            value: "production"
+          - path: "$.metadata.labels.app"
+            value: "backup-service"
+          - path: "$.metadata.labels.environment"
+            value: "production"
+          - path: "$.spec.schedule"
+            value: "0 2 * * *"  # 2 AM daily
+          - path: "$.spec.concurrencyPolicy"
+            value: "Forbid"
+          - path: "$.spec.successfulJobsHistoryLimit"
+            value: "3"
+          - path: "$.spec.failedJobsHistoryLimit"
+            value: "1"
+```
+
+### Example 2: Multi-Environment Data Processing
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    values:
+      - filename: "data-processing-staging"
+        paths:
+          - path: "$.metadata.name"
+            value: "data-processing-staging"
+          - path: "$.metadata.namespace"
+            value: "staging"
+          - path: "$.spec.schedule"
+            value: "0 */4 * * *"  # Every 4 hours
+          - path: "$.spec.workflowSpec.arguments.parameters[0].value"
+            value: "s3://staging-data-bucket/"
+      - filename: "data-processing-production"
+        paths:
+          - path: "$.metadata.name"
+            value: "data-processing-production"
+          - path: "$.metadata.namespace"
+            value: "production"
+          - path: "$.spec.schedule"
+            value: "0 1 * * *"   # 1 AM daily
+          - path: "$.spec.workflowSpec.arguments.parameters[0].value"
+            value: "s3://production-data-bucket/"
+```
+
+### Example 3: Complex Nested Configuration
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    baseManifestPath: "./templates/complex-workflow.yaml"
+    values:
+      - filename: "ml-training-pipeline"
+        paths:
+          - path: "$.metadata.name"
+            value: "weekly-ml-training"
+          - path: "$.spec.schedule"
+            value: "0 0 * * 0"  # Weekly on Sunday
+          - path: "$.spec.workflowSpec.templates[0].container.env[0].value"
+            value: "production"
+          - path: "$.spec.workflowSpec.templates[0].container.resources.requests.memory"
+            value: "8Gi"
+          - path: "$.spec.workflowSpec.templates[0].container.resources.requests.cpu"
+            value: "4"
+          - path: "$.spec.workflowSpec.arguments.parameters[0].name"
+            value: "model-version"
+          - path: "$.spec.workflowSpec.arguments.parameters[0].value"
+            value: "v2.1.0"
+```
+
+These examples demonstrate:
+- **Environment-specific configurations**: Different namespaces, schedules, and parameters for staging vs production
+- **Resource management**: Setting memory and CPU requests
+- **Complex path targeting**: Accessing deeply nested fields like container environment variables and array elements
+- **Parameter injection**: Setting workflow arguments and parameters dynamically
+
 ## Building from Source
 
 If you prefer to build the binary locally:

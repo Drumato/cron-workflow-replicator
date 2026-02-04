@@ -15,7 +15,6 @@ import (
 	"github.com/drumato/cron-workflow-replicator/kustomize"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/api/types"
 	kyaml "sigs.k8s.io/yaml"
 )
@@ -38,9 +37,9 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "test-v1alpha1",
-						Metadata: metav1.ObjectMeta{
-							Name:      "test-workflow",
-							Namespace: "default",
+						Paths: []config.PathValue{
+							{Path: "$.metadata.name", Value: "test-workflow"},
+							{Path: "$.metadata.namespace", Value: "default"},
 						},
 					},
 				},
@@ -56,9 +55,9 @@ func TestRunner_APIVersionConfiguration(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "test-default",
-						Metadata: metav1.ObjectMeta{
-							Name:      "test-workflow-default",
-							Namespace: "default",
+						Paths: []config.PathValue{
+							{Path: "$.metadata.name", Value: "test-workflow-default"},
+							{Path: "$.metadata.namespace", Value: "default"},
 						},
 					},
 				},
@@ -145,13 +144,11 @@ spec:
 						Values: []config.Value{
 							{
 								Filename: "novalue1",
-								Metadata: metav1.ObjectMeta{},
-								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{},
+								Paths:    []config.PathValue{},
 							},
 							{
 								Filename: "novalue2",
-								Metadata: metav1.ObjectMeta{},
-								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{},
+								Paths:    []config.PathValue{},
 							},
 						},
 					},
@@ -181,31 +178,21 @@ spec:
 						Values: []config.Value{
 							{
 								Filename: "withvalue1",
-								Metadata: metav1.ObjectMeta{
-									Name:      "test-cronworkflow",
-									Namespace: "test-namespace",
-									Labels: map[string]string{
-										"app": "test-app",
-									},
-								},
-								Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-									Schedule: "0 0 * * *",
-									WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
-										Entrypoint: "main",
-									},
+								Paths: []config.PathValue{
+									{Path: "$.metadata.name", Value: "test-cronworkflow"},
+									{Path: "$.metadata.namespace", Value: "test-namespace"},
+									{Path: "$.metadata.labels.app", Value: "test-app"},
+									{Path: "$.spec.schedule", Value: "0 0 * * *"},
+									{Path: "$.spec.workflowSpec.entrypoint", Value: "main"},
 								},
 							},
 							{
 								Filename: "withvalue2",
-								Metadata: metav1.ObjectMeta{
-									Name:      "another-cronworkflow",
-									Namespace: "another-namespace",
-								},
-								Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-									Schedule: "0 12 * * 1",
-									WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
-										Entrypoint: "weekly-job",
-									},
+								Paths: []config.PathValue{
+									{Path: "$.metadata.name", Value: "another-cronworkflow"},
+									{Path: "$.metadata.namespace", Value: "another-namespace"},
+									{Path: "$.spec.schedule", Value: "0 12 * * 1"},
+									{Path: "$.spec.workflowSpec.entrypoint", Value: "weekly-job"},
 								},
 							},
 						},
@@ -238,15 +225,11 @@ spec:
 						Values: []config.Value{
 							{
 								Filename: "customized1",
-								Metadata: metav1.ObjectMeta{
-									Name:      "custom-cronworkflow",
-									Namespace: "custom-namespace",
-									Labels: map[string]string{
-										"custom": "label",
-									},
-								},
-								Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-									Schedule: "0 6 * * *", // Override schedule
+								Paths: []config.PathValue{
+									{Path: "$.metadata.name", Value: "custom-cronworkflow"},
+									{Path: "$.metadata.namespace", Value: "custom-namespace"},
+									{Path: "$.metadata.labels.custom", Value: "label"},
+									{Path: "$.spec.schedule", Value: "0 6 * * *"},
 								},
 							},
 						},
@@ -286,12 +269,11 @@ spec:
 						Values: []config.Value{
 							{
 								Filename: "standalone1",
-								Metadata: metav1.ObjectMeta{
-									Name:      "standalone-cronworkflow",
-									Namespace: "standalone-namespace",
-								},
-								Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-									Schedule: "0 12 * * 1",
+								Paths: []config.PathValue{
+									{Path: "$.metadata.name", Value: "standalone-cronworkflow"},
+									{Path: "$.metadata.namespace", Value: "standalone-namespace"},
+									{Path: "$.spec.schedule", Value: "0 12 * * 1"},
+									{Path: "$.spec.workflowSpec.entrypoint", Value: "standalone-entrypoint"},
 								},
 							},
 						},
@@ -500,23 +482,9 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "backup-job",
-						Metadata: metav1.ObjectMeta{
-							Name:      "backup-cronworkflow",
-							Namespace: "default",
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 2 * * *",
-						},
 					},
 					{
 						Filename: "cleanup-job",
-						Metadata: metav1.ObjectMeta{
-							Name:      "cleanup-cronworkflow",
-							Namespace: "default",
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 4 * * *",
-						},
 					},
 				},
 			},
@@ -544,13 +512,6 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "backup-job",
-						Metadata: metav1.ObjectMeta{
-							Name:      "backup-cronworkflow",
-							Namespace: "default",
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 2 * * *",
-						},
 					},
 				},
 			},
@@ -571,13 +532,6 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "backup-job",
-						Metadata: metav1.ObjectMeta{
-							Name:      "backup-cronworkflow",
-							Namespace: "default",
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 2 * * *",
-						},
 					},
 				},
 			},
@@ -598,13 +552,6 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "backup-job",
-						Metadata: metav1.ObjectMeta{
-							Name:      "backup-cronworkflow",
-							Namespace: "default",
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 2 * * *",
-						},
 					},
 				},
 			},
@@ -745,8 +692,6 @@ func TestRunner_processUnit_ErrorScenarios(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "test-workflow",
-						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
 					},
 				},
 			},
@@ -774,8 +719,6 @@ metadata:
 				Values: []config.Value{
 					{
 						Filename: "test-workflow",
-						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
 					},
 				},
 			},
@@ -798,8 +741,6 @@ metadata:
 				Values: []config.Value{
 					{
 						Filename: "test-workflow",
-						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
 					},
 				},
 			},
@@ -865,8 +806,6 @@ func TestRunner_Run_ErrorPropagation(t *testing.T) {
 				Values: []config.Value{
 					{
 						Filename: "test-workflow",
-						Metadata: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
 					},
 				},
 			},
@@ -905,20 +844,6 @@ func TestRunner_MemoryUsage_InMemoryGeneration(t *testing.T) {
 		for j := 0; j < 10; j++ {
 			unit.Values = append(unit.Values, config.Value{
 				Filename: fmt.Sprintf("workflow-%d-%d", i, j),
-				Metadata: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("test-workflow-%d-%d", i, j),
-					Namespace: "default",
-					Labels: map[string]string{
-						"batch": fmt.Sprintf("batch-%d", i),
-						"index": fmt.Sprintf("%d", j),
-					},
-				},
-				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 0 * * *",
-					WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
-						Entrypoint: "main",
-					},
-				},
 			})
 		}
 
@@ -970,16 +895,6 @@ spec:
 				Values: []config.Value{
 					{
 						Filename: "benchmark-workflow",
-						Metadata: metav1.ObjectMeta{
-							Name:      "benchmark-cronworkflow",
-							Namespace: "benchmark",
-							Labels: map[string]string{
-								"benchmark": "true",
-							},
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 6 * * *",
-						},
 					},
 				},
 			},
@@ -1032,13 +947,6 @@ func TestRunner_ConcurrentInMemoryAccess(t *testing.T) {
 						Values: []config.Value{
 							{
 								Filename: fmt.Sprintf("concurrent-workflow-%d", goroutineID),
-								Metadata: metav1.ObjectMeta{
-									Name:      fmt.Sprintf("concurrent-cronworkflow-%d", goroutineID),
-									Namespace: "concurrent-test",
-								},
-								Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-									Schedule: "0 0 * * *",
-								},
 							},
 						},
 					},
@@ -1112,20 +1020,14 @@ spec:
 				Values: []config.Value{
 					{
 						Filename: "comprehensive-test",
-						Metadata: metav1.ObjectMeta{
-							Name:      "comprehensive-cronworkflow",
-							Namespace: "override-ns",
-							Labels: map[string]string{
-								"override-label": "override-value",
-								"shared-label":   "override-shared", // Should override base
-							},
-							Annotations: map[string]string{
-								"override-annotation": "override-annotation-value",
-							},
-						},
-						Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-							Schedule: "0 6 * * *", // Override base schedule
-							Suspend:  true,        // Override base suspend
+						Paths: []config.PathValue{
+							{Path: "$.metadata.name", Value: "comprehensive-cronworkflow"},
+							{Path: "$.metadata.namespace", Value: "override-ns"},
+							{Path: "$.metadata.labels.override-label", Value: "override-value"},
+							{Path: "$.metadata.labels.shared-label", Value: "override-shared"},
+							{Path: "$.metadata.annotations.override-annotation", Value: "override-annotation-value"},
+							{Path: "$.spec.schedule", Value: "0 6 * * *"},
+							{Path: "$.spec.suspend", Value: "true"},
 						},
 					},
 				},

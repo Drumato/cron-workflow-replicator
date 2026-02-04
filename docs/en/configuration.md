@@ -136,6 +136,99 @@ units:
     # Custom values can be injected into templates
 ```
 
+## Value Configuration with JSONPath
+
+### New JSONPath-Based Configuration
+
+Starting with the latest version, the tool uses JSONPath expressions to set values in generated CronWorkflows. This provides more flexibility and precision when configuring generated manifests.
+
+### Basic JSONPath Structure
+
+```yaml
+units:
+  - outputDirectory: "./output"
+    baseManifestPath: "./base-manifest.yaml"
+    values:
+      - filename: "example-workflow"
+        paths:
+          - path: "$.metadata.name"
+            value: "my-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "default"
+          - path: "$.spec.schedule"
+            value: "0 0 * * *"
+```
+
+### JSONPath Expression Rules
+
+- All paths must start with `$` (root element)
+- Use dot notation for nested fields: `$.metadata.name`
+- Array indexing supported: `$.spec.workflowSpec.templates[0].name`
+- Validation ensures path is valid JSONPath expression
+- Empty `paths` array is allowed (useful for templates without customization)
+
+### Common JSONPath Examples
+
+```yaml
+# Setting metadata fields
+- path: "$.metadata.name"
+  value: "my-cronworkflow"
+- path: "$.metadata.namespace"
+  value: "production"
+- path: "$.metadata.labels.app"
+  value: "data-processor"
+
+# Setting spec fields
+- path: "$.spec.schedule"
+  value: "0 2 * * *"
+- path: "$.spec.concurrencyPolicy"
+  value: "Forbid"
+
+# Setting nested workflow spec fields
+- path: "$.spec.workflowSpec.entrypoint"
+  value: "main"
+- path: "$.spec.workflowSpec.templates[0].name"
+  value: "worker-task"
+
+# Setting arguments and parameters
+- path: "$.spec.workflowSpec.arguments.parameters[0].name"
+  value: "input-file"
+- path: "$.spec.workflowSpec.arguments.parameters[0].value"
+  value: "/data/input.csv"
+```
+
+### Migration from Old Format
+
+**Old format (no longer supported):**
+```yaml
+# OLD - No longer works
+values:
+  - filename: "example"
+    metadata:
+      name: "my-cronworkflow"
+    spec:
+      schedule: "0 0 * * *"
+```
+
+**New format:**
+```yaml
+# NEW - Current format
+values:
+  - filename: "example"
+    paths:
+      - path: "$.metadata.name"
+        value: "my-cronworkflow"
+      - path: "$.spec.schedule"
+        value: "0 0 * * *"
+```
+
+### JSONPath Benefits
+
+- **Precision**: Target exact fields without affecting other parts of the manifest
+- **Flexibility**: Set any field in the generated YAML, including deeply nested ones
+- **Validation**: JSONPath expressions are validated at parse time
+- **Clarity**: Explicit path declarations make configurations self-documenting
+
 ## Examples
 
 Check the `examples/` directory for complete configuration examples:

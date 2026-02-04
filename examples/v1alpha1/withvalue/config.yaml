@@ -3,46 +3,66 @@ units:
     apiVersion: "v1alpha1"
     values:
       - filename: "daily-backup"
-        metadata:
-          name: "daily-backup-cronworkflow"
-          namespace: "backup"
-          labels:
-            app: "backup-system"
-            environment: "production"
-            schedule-type: "daily"
-        spec:
-          schedule: "0 2 * * *"  # Daily at 2 AM
-          workflowSpec:
-            entrypoint: "backup-workflow"
-            templates:
-              - name: "backup-workflow"
-                steps:
-                  - - name: "run-backup"
-                      template: "backup-template"
-              - name: "backup-template"
-                container:
-                  image: "backup-tool:latest"
-                  command: ["sh", "-c"]
-                  args: ["echo 'Running backup...'"]
+        paths:
+          - path: "$.metadata.name"
+            value: "daily-backup-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "backup"
+          - path: "$.metadata.labels.app"
+            value: "backup-system"
+          - path: "$.metadata.labels.environment"
+            value: "production"
+          - path: "$.metadata.labels.schedule-type"
+            value: "daily"
+          - path: "$.spec.schedule"
+            value: "0 2 * * *"  # Daily at 2 AM
+          - path: "$.spec.workflowSpec.entrypoint"
+            value: "backup-workflow"
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "backup-workflow"
+          - path: "$.spec.workflowSpec.templates[0].steps[0][0].name"
+            value: "run-backup"
+          - path: "$.spec.workflowSpec.templates[0].steps[0][0].template"
+            value: "backup-template"
+          - path: "$.spec.workflowSpec.templates[1].name"
+            value: "backup-template"
+          - path: "$.spec.workflowSpec.templates[1].container.image"
+            value: "backup-tool:latest"
+          - path: "$.spec.workflowSpec.templates[1].container.command[0]"
+            value: "sh"
+          - path: "$.spec.workflowSpec.templates[1].container.command[1]"
+            value: "-c"
+          - path: "$.spec.workflowSpec.templates[1].container.args[0]"
+            value: "echo 'Running backup...'"
       - filename: "weekly-cleanup"
-        metadata:
-          name: "weekly-cleanup-cronworkflow"
-          namespace: "maintenance"
-          labels:
-            app: "cleanup-system"
-            environment: "production"
-            schedule-type: "weekly"
-        spec:
-          schedule: "0 3 * * 0"  # Weekly on Sunday at 3 AM
-          workflowSpec:
-            entrypoint: "cleanup-workflow"
-            templates:
-              - name: "cleanup-workflow"
-                steps:
-                  - - name: "run-cleanup"
-                      template: "cleanup-template"
-              - name: "cleanup-template"
-                container:
-                  image: "cleanup-tool:latest"
-                  command: ["sh", "-c"]
-                  args: ["echo 'Running cleanup...'"]
+        paths:
+          - path: "$.metadata.name"
+            value: "weekly-cleanup-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "maintenance"
+          - path: "$.metadata.labels.app"
+            value: "cleanup-system"
+          - path: "$.metadata.labels.environment"
+            value: "production"
+          - path: "$.metadata.labels.schedule-type"
+            value: "weekly"
+          - path: "$.spec.schedule"
+            value: "0 3 * * 0"  # Weekly on Sunday at 3 AM
+          - path: "$.spec.workflowSpec.entrypoint"
+            value: "cleanup-workflow"
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "cleanup-workflow"
+          - path: "$.spec.workflowSpec.templates[0].steps[0][0].name"
+            value: "run-cleanup"
+          - path: "$.spec.workflowSpec.templates[0].steps[0][0].template"
+            value: "cleanup-template"
+          - path: "$.spec.workflowSpec.templates[1].name"
+            value: "cleanup-template"
+          - path: "$.spec.workflowSpec.templates[1].container.image"
+            value: "cleanup-tool:latest"
+          - path: "$.spec.workflowSpec.templates[1].container.command[0]"
+            value: "sh"
+          - path: "$.spec.workflowSpec.templates[1].container.command[1]"
+            value: "-c"
+          - path: "$.spec.workflowSpec.templates[1].container.args[0]"
+            value: "echo 'Running cleanup...'"

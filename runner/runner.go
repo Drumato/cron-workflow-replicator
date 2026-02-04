@@ -9,8 +9,8 @@ import (
 
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/drumato/cron-workflow-replicator/filesystem"
+	"github.com/drumato/cron-workflow-replicator/jsonpath"
 	"github.com/drumato/cron-workflow-replicator/kustomize"
-	"github.com/drumato/cron-workflow-replicator/structutil"
 	"github.com/drumato/cron-workflow-replicator/types"
 )
 
@@ -19,6 +19,7 @@ type Runner struct {
 	fsConnector      filesystem.FileSystem
 	fileReader       config.FileReader
 	kustomizeManager *kustomize.Manager
+	pathEvaluator    *jsonpath.PathEvaluator
 }
 
 type RunnerOption func(*Runner)
@@ -30,6 +31,7 @@ func New(logger *slog.Logger, opts ...RunnerOption) *Runner {
 		fsConnector:      fs,
 		fileReader:       &config.DefaultFileReader{},
 		kustomizeManager: kustomize.NewManager(fs),
+		pathEvaluator:    jsonpath.NewPathEvaluator(logger),
 	}
 	for _, opt := range opts {
 		opt(&r)
@@ -52,6 +54,12 @@ func WithFileReader(fr config.FileReader) RunnerOption {
 func WithKustomizeManager(km *kustomize.Manager) RunnerOption {
 	return func(r *Runner) {
 		r.kustomizeManager = km
+	}
+}
+
+func WithPathEvaluator(pe *jsonpath.PathEvaluator) RunnerOption {
+	return func(r *Runner) {
+		r.pathEvaluator = pe
 	}
 }
 
@@ -111,11 +119,11 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 		// Start with the base CronWorkflow (deep copy to avoid modifying the original)
 		cw := *baseCronWorkflow
 
-		// Merge metadata from the value
-		structutil.MergeStruct(&cw.ObjectMeta, &value.Metadata)
-
-		// Merge spec from the value
-		structutil.MergeStruct(&cw.Spec, &value.Spec)
+		// Apply paths from the value using JSONPath evaluation
+		if err := r.pathEvaluator.ApplyPaths(&cw, value.Paths); err != nil {
+			r.logger.Error("Failed to apply paths", "filename", value.Filename, "error", err)
+			return fmt.Errorf("failed to apply paths for %s: %w", value.Filename, err)
+		}
 
 		cleanCW := types.NewCleanCronWorkflow(&cw)
 		out, err := cleanCW.ToYAMLWithIndent(unit.GetIndent())

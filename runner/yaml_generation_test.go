@@ -390,10 +390,10 @@ func TestYAMLGeneration_FieldOrdering(t *testing.T) {
 
 func TestYAMLGeneration_CleanOutput(t *testing.T) {
 	tests := []struct {
-		name           string
-		cw             *argoworkflowsv1alpha1.CronWorkflow
-		expectAbsent   []string
-		expectPresent  []string
+		name          string
+		cw            *argoworkflowsv1alpha1.CronWorkflow
+		expectAbsent  []string
+		expectPresent []string
 	}{
 		{
 			name: "minimal CronWorkflow excludes status and creationTimestamp",

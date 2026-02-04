@@ -6,15 +6,15 @@ import (
 	"reflect"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	k8syaml "sigs.k8s.io/yaml"
 	"gopkg.in/yaml.v3"
+	k8syaml "sigs.k8s.io/yaml"
 )
 
 // CleanCronWorkflow - YAML出力用の不要フィールドを除いたCronWorkflow表現
 type CleanCronWorkflow struct {
-	APIVersion string                               `yaml:"apiVersion"`
-	Kind       string                               `yaml:"kind"`
-	Metadata   *CleanObjectMeta                     `yaml:"metadata,omitempty"`
+	APIVersion string                                 `yaml:"apiVersion"`
+	Kind       string                                 `yaml:"kind"`
+	Metadata   *CleanObjectMeta                       `yaml:"metadata,omitempty"`
 	Spec       argoworkflowsv1alpha1.CronWorkflowSpec `yaml:"spec,omitempty"`
 }
 

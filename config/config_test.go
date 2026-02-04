@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestAPIVersion_GetSchemeGroupVersion(t *testing.T) {
@@ -382,8 +380,10 @@ func TestConfig_ValidateConfig(t *testing.T) {
 						Values: []Value{
 							{
 								Filename: "test-job",
-								Metadata: metav1.ObjectMeta{Name: "test"},
-								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+								Paths: []PathValue{
+									{Path: "$.metadata.name", Value: "test"},
+									{Path: "$.spec.schedule", Value: "0 0 * * *"},
+								},
 							},
 						},
 					},
@@ -415,8 +415,10 @@ func TestConfig_ValidateConfig(t *testing.T) {
 						Values: []Value{
 							{
 								Filename: "test-job",
-								Metadata: metav1.ObjectMeta{Name: "test"},
-								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+								Paths: []PathValue{
+									{Path: "$.metadata.name", Value: "test"},
+									{Path: "$.spec.schedule", Value: "0 0 * * *"},
+								},
 							},
 						},
 					},
@@ -437,8 +439,10 @@ func TestConfig_ValidateConfig(t *testing.T) {
 						Values: []Value{
 							{
 								Filename: "test-job",
-								Metadata: metav1.ObjectMeta{Name: "test"},
-								Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+								Paths: []PathValue{
+									{Path: "$.metadata.name", Value: "test"},
+									{Path: "$.spec.schedule", Value: "0 0 * * *"},
+								},
 							},
 						},
 					},
@@ -510,8 +514,10 @@ func TestUnit_Validate(t *testing.T) {
 				Values: []Value{
 					{
 						Filename: "test-job",
-						Metadata: metav1.ObjectMeta{Name: "test"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+						Paths: []PathValue{
+							{Path: "$.metadata.name", Value: "test"},
+							{Path: "$.spec.schedule", Value: "0 0 * * *"},
+						},
 					},
 				},
 			},
@@ -534,8 +540,10 @@ func TestUnit_Validate(t *testing.T) {
 				Values: []Value{
 					{
 						Filename: "test-job",
-						Metadata: metav1.ObjectMeta{Name: "test"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+						Paths: []PathValue{
+							{Path: "$.metadata.name", Value: "test"},
+							{Path: "$.spec.schedule", Value: "0 0 * * *"},
+						},
 					},
 				},
 			},
@@ -685,8 +693,10 @@ func TestUnit_Validate_IndentValidation(t *testing.T) {
 				Values: []Value{
 					{
 						Filename: "test-job",
-						Metadata: metav1.ObjectMeta{Name: "test"},
-						Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+						Paths: []PathValue{
+							{Path: "$.metadata.name", Value: "test"},
+							{Path: "$.spec.schedule", Value: "0 0 * * *"},
+						},
 					},
 				},
 			}
@@ -713,11 +723,21 @@ func TestValue_Validate(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name: "valid value",
+			name: "valid value with paths",
 			value: Value{
 				Filename: "test-job",
-				Metadata: metav1.ObjectMeta{Name: "test"},
-				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+				Paths: []PathValue{
+					{Path: "$.metadata.name", Value: "test"},
+					{Path: "$.spec.schedule", Value: "0 0 * * *"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid value without paths",
+			value: Value{
+				Filename: "test-job",
+				Paths:    []PathValue{},
 			},
 			expectError: false,
 		},
@@ -725,35 +745,113 @@ func TestValue_Validate(t *testing.T) {
 			name: "missing filename",
 			value: Value{
 				Filename: "",
-				Metadata: metav1.ObjectMeta{Name: "test"},
-				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+				Paths: []PathValue{
+					{Path: "$.metadata.name", Value: "test"},
+				},
 			},
 			expectError:   true,
 			errorContains: "filename is required",
 		},
 		{
-			name: "missing metadata name",
+			name: "invalid path without $",
 			value: Value{
 				Filename: "test-job",
-				Metadata: metav1.ObjectMeta{Name: ""},
-				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: "0 0 * * *"},
+				Paths: []PathValue{
+					{Path: "metadata.name", Value: "test"},
+				},
 			},
-			expectError: false, // Now valid for minimal configurations
+			expectError:   true,
+			errorContains: "path must be a valid JSONPath expression starting with '$'",
 		},
 		{
-			name: "missing schedule",
+			name: "empty path",
 			value: Value{
 				Filename: "test-job",
-				Metadata: metav1.ObjectMeta{Name: "test"},
-				Spec:     argoworkflowsv1alpha1.CronWorkflowSpec{Schedule: ""},
+				Paths: []PathValue{
+					{Path: "", Value: "test"},
+				},
 			},
-			expectError: false, // Now valid for minimal configurations
+			expectError:   true,
+			errorContains: "path is required",
+		},
+		{
+			name: "valid path with empty value",
+			value: Value{
+				Filename: "test-job",
+				Paths: []PathValue{
+					{Path: "$.metadata.name", Value: ""},
+				},
+			},
+			expectError: false, // Empty value should be allowed
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.value.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestPathValue_Validate(t *testing.T) {
+	tests := []struct {
+		name          string
+		pathValue     PathValue
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "valid simple path",
+			pathValue:   PathValue{Path: "$.metadata.name", Value: "test"},
+			expectError: false,
+		},
+		{
+			name:        "valid nested path",
+			pathValue:   PathValue{Path: "$.metadata.labels.app", Value: "my-app"},
+			expectError: false,
+		},
+		{
+			name:        "valid root path",
+			pathValue:   PathValue{Path: "$", Value: "root-value"},
+			expectError: false,
+		},
+		{
+			name:        "valid path with empty value",
+			pathValue:   PathValue{Path: "$.metadata.name", Value: ""},
+			expectError: false,
+		},
+		{
+			name:          "empty path",
+			pathValue:     PathValue{Path: "", Value: "test"},
+			expectError:   true,
+			errorContains: "path is required",
+		},
+		{
+			name:          "path without $",
+			pathValue:     PathValue{Path: "metadata.name", Value: "test"},
+			expectError:   true,
+			errorContains: "path must be a valid JSONPath expression starting with '$'",
+		},
+		{
+			name:          "path with only dot",
+			pathValue:     PathValue{Path: ".", Value: "test"},
+			expectError:   true,
+			errorContains: "path must be a valid JSONPath expression starting with '$'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.pathValue.Validate()
 
 			if tt.expectError {
 				assert.Error(t, err)

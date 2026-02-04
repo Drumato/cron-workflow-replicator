@@ -14,7 +14,29 @@ This configuration:
 The `config.yaml` demonstrates:
 - **Kustomize Integration**: `kustomize.updateResources: true` enables automatic kustomization.yaml management
 - **Multiple Workflows**: Two different CronWorkflows with different schedules and purposes
+- **JSONPath Configuration**: Uses the new `paths` array format for precise value setting in generated manifests
 - **Path Resolution**: Output directory is relative to the config file location
+
+### JSONPath Value Configuration
+
+This example uses JSONPath expressions to configure generated CronWorkflows:
+
+```yaml
+values:
+  - filename: "backup-job"
+    paths:
+      - path: "$.metadata.name"
+        value: "daily-backup"
+      - path: "$.spec.schedule"
+        value: "0 2 * * *"
+      - path: "$.spec.concurrencyPolicy"
+        value: "Forbid"
+```
+
+Benefits of JSONPath configuration:
+- **Precise targeting**: Set exact fields without affecting other manifest parts
+- **Validation**: JSONPath expressions are validated at configuration parse time
+- **Flexibility**: Configure any field in the generated YAML, including deeply nested ones
 
 ## Generated Files
 
