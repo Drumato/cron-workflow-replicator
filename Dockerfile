@@ -9,6 +9,8 @@ COPY ./main.go ./
 COPY ./cmd ./cmd
 COPY ./config ./config
 COPY ./runner ./runner
+COPY ./types ./types
+COPY ./jsonpath ./jsonpath
 COPY ./structutil ./structutil
 COPY ./filesystem ./filesystem
 COPY ./kustomize ./kustomize 
