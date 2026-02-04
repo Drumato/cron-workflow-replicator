@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	k8syaml "sigs.k8s.io/yaml"
 	"gopkg.in/yaml.v3"
 )
 
@@ -81,8 +82,8 @@ func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 		}
 	}
 
-	// Specをマーシャルしてから小文字のキーに変換し、空フィールドを除外
-	specData, err := yaml.Marshal(c.Spec)
+	// Specをマーシャルしてキャメルケースキーを保持し、空フィールドを除外
+	specData, err := k8syaml.Marshal(c.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal spec: %w", err)
 	}
