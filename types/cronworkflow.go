@@ -35,13 +35,13 @@ func NewCleanCronWorkflow(cw *argoworkflowsv1alpha1.CronWorkflow) *CleanCronWork
 	}
 
 	// ObjectMetaから必要なフィールドのみをコピー（空でない場合のみMetadataを設定）
-	if cw.ObjectMeta.Name != "" || cw.ObjectMeta.Namespace != "" ||
-		len(cw.ObjectMeta.Labels) > 0 || len(cw.ObjectMeta.Annotations) > 0 {
+	if cw.Name != "" || cw.Namespace != "" ||
+		len(cw.Labels) > 0 || len(cw.Annotations) > 0 {
 		clean.Metadata = &CleanObjectMeta{
-			Name:        cw.ObjectMeta.Name,
-			Namespace:   cw.ObjectMeta.Namespace,
-			Labels:      cw.ObjectMeta.Labels,
-			Annotations: cw.ObjectMeta.Annotations,
+			Name:        cw.Name,
+			Namespace:   cw.Namespace,
+			Labels:      cw.Labels,
+			Annotations: cw.Annotations,
 		}
 	}
 
