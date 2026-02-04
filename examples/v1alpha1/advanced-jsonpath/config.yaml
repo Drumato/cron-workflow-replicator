@@ -1,0 +1,112 @@
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    values:
+      # 配列操作と型変換を示すワークフロー
+      - filename: "production-advanced"
+        paths:
+          # 基本的なメタデータの設定
+          - path: "$.metadata.name"
+            value: "production-cron-workflow"
+          - path: "$.metadata.labels.environment"
+            value: "production"
+          - path: "$.metadata.labels.team"
+            value: "platform"
+          - path: "$.spec.schedule"
+            value: "0 2 * * *"  # 毎日午前2時に実行
+
+          # 配列操作: 最初のテンプレートの設定
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "production-main"
+
+          # 配列操作: テンプレートの設定（正のインデックス）
+          - path: "$.spec.workflowSpec.templates[1].name"
+            value: "production-hello"
+          - path: "$.spec.workflowSpec.templates[1].container.image"
+            value: "alpine:3.18"
+          - path: "$.spec.workflowSpec.templates[1].container.args[0]"
+            value: "echo 'Hello from Production!'"
+
+          # 配列操作: 最後のテンプレートの設定（負のインデックス）
+          - path: "$.spec.workflowSpec.templates[-1].name"
+            value: "production-world"
+          - path: "$.spec.workflowSpec.templates[-1].container.image"
+            value: "alpine:3.18"
+          - path: "$.spec.workflowSpec.templates[-1].container.args[-1]"
+            value: "echo 'World from Production!'"
+
+          # 数値型変換のテスト
+          - path: "$.spec.workflowSpec.parallelism"
+            value: "2"
+          - path: "$.spec.workflowSpec.activeDeadlineSeconds"
+            value: "3600"
+
+          # boolean型変換のテスト
+          - path: "$.spec.suspend"
+            value: "false"
+
+      # 配列拡張と複雑な型変換を示すワークフロー
+      - filename: "development-extended"
+        paths:
+          - path: "$.metadata.name"
+            value: "development-cron-workflow"
+          - path: "$.metadata.labels.environment"
+            value: "development"
+          - path: "$.metadata.labels.team"
+            value: "development"
+          - path: "$.spec.schedule"
+            value: "*/5 * * * *"  # 5分毎に実行
+
+          # 配列拡張: 新しいテンプレートを追加（インデックス3）
+          - path: "$.spec.workflowSpec.templates[3].name"
+            value: "dev-debug"
+          - path: "$.spec.workflowSpec.templates[3].container.image"
+            value: "alpine:latest"
+          - path: "$.spec.workflowSpec.templates[3].container.command"
+            value: '["sh", "-c"]'
+          - path: "$.spec.workflowSpec.templates[3].container.args"
+            value: '["echo debug && sleep 10"]'
+
+          # 既存テンプレートの設定更新
+          - path: "$.spec.workflowSpec.templates[1].container.args[0]"
+            value: "echo 'Hello from Development!'"
+          - path: "$.spec.workflowSpec.templates[2].container.args[0]"
+            value: "echo 'World from Development!'"
+
+          # 数値設定のテスト
+          - path: "$.spec.workflowSpec.parallelism"
+            value: "1"
+          - path: "$.spec.workflowSpec.activeDeadlineSeconds"
+            value: "600"
+
+          # boolean設定のテスト
+          - path: "$.spec.suspend"
+            value: "false"
+
+      # 高度な型変換を示すワークフロー
+      - filename: "testing-types"
+        paths:
+          - path: "$.metadata.name"
+            value: "testing-cron-workflow"
+          - path: "$.metadata.labels.environment"
+            value: "testing"
+
+          # JSON配列値のテスト
+          - path: "$.spec.workflowSpec.arguments.parameters"
+            value: '[{"name": "test-param", "value": "test-value"}, {"name": "env", "value": "testing"}]'
+
+          # JSON オブジェクト値のテスト
+          - path: "$.spec.workflowSpec.nodeSelector"
+            value: '{"kubernetes.io/os": "linux", "node-type": "test"}'
+
+          # null値のテスト
+          - path: "$.spec.timezone"
+            value: "null"
+
+          # 浮動小数点数のテスト (文字列として設定)
+          - path: "$.spec.workflowSpec.ttlStrategy.secondsAfterCompletion"
+            value: "3600"
+
+          # 複雑な配列操作
+          - path: "$.spec.workflowSpec.templates[0].steps[0][0].arguments.parameters"
+            value: '[{"name": "message", "value": "testing"}]'

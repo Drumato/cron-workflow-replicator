@@ -4,11 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strconv"
+	"strings"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/oliveagle/jsonpath"
 )
+
+// PathSegment represents a segment in a JSONPath
+type PathSegment struct {
+	Key        string
+	ArrayIndex *int  // nil if not an array access
+	IsNegative bool  // true for negative indices like [-1]
+}
 
 // PathEvaluator handles JSONPath evaluation and value setting
 type PathEvaluator struct {
@@ -85,12 +95,43 @@ func (pe *PathEvaluator) mapToStruct(m map[string]interface{}, target interface{
 
 // convertValue attempts to convert a string value to the appropriate type
 func (pe *PathEvaluator) convertValue(value string) interface{} {
-	// Try boolean conversion first
+	// Try null conversion first
+	if value == "null" {
+		return nil
+	}
+
+	// Try boolean conversion
 	if value == "true" {
 		return true
 	}
 	if value == "false" {
 		return false
+	}
+
+	// Try integer conversion
+	if intVal, err := strconv.Atoi(value); err == nil {
+		return intVal
+	}
+
+	// Try float conversion
+	if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+		return floatVal
+	}
+
+	// Try JSON array conversion
+	if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+		var arrayVal []interface{}
+		if err := json.Unmarshal([]byte(value), &arrayVal); err == nil {
+			return arrayVal
+		}
+	}
+
+	// Try JSON object conversion
+	if strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}") {
+		var objVal map[string]interface{}
+		if err := json.Unmarshal([]byte(value), &objVal); err == nil {
+			return objVal
+		}
 	}
 
 	// Return as string if no conversion needed
@@ -118,12 +159,6 @@ func (pe *PathEvaluator) setValueAtPath(target map[string]interface{}, path stri
 
 // createPathAndSetValue creates the path structure and sets the value
 func (pe *PathEvaluator) createPathAndSetValue(target map[string]interface{}, path string, value string) error {
-	// This is a simplified implementation - in a production system you'd want
-	// more sophisticated path creation logic
-
-	// For now, we'll use a different approach: try to set the value directly
-	// using string manipulation to build the nested structure
-
 	// Parse the JSONPath to understand the structure
 	segments, err := pe.parseJSONPath(path)
 	if err != nil {
@@ -134,21 +169,132 @@ func (pe *PathEvaluator) createPathAndSetValue(target map[string]interface{}, pa
 	current := target
 	for i, segment := range segments {
 		if i == len(segments)-1 {
-			// Last segment, set the value with type conversion
-			current[segment] = pe.convertValue(value)
-		} else {
-			// Intermediate segment, create map if it doesn't exist
-			if _, exists := current[segment]; !exists {
-				current[segment] = make(map[string]interface{})
-			}
-
-			// Move to next level
-			if nextMap, ok := current[segment].(map[string]interface{}); ok {
-				current = nextMap
+			// Last segment, set the value
+			if segment.ArrayIndex != nil {
+				// Array access
+				return pe.setValueAtArrayIndex(current, segment.Key, *segment.ArrayIndex, segment.IsNegative, value)
 			} else {
-				return fmt.Errorf("path segment %s is not a map, cannot create nested structure", segment)
+				// Regular key access
+				current[segment.Key] = pe.convertValue(value)
+			}
+		} else {
+			// Intermediate segment
+			if segment.ArrayIndex != nil {
+				// Navigate through array
+				if err := pe.navigateToArrayElement(&current, segment.Key, *segment.ArrayIndex, segment.IsNegative); err != nil {
+					return err
+				}
+			} else {
+				// Create map if it doesn't exist
+				if _, exists := current[segment.Key]; !exists {
+					current[segment.Key] = make(map[string]interface{})
+				}
+
+				// Move to next level
+				if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
+					current = nextMap
+				} else {
+					return fmt.Errorf("path segment %s is not a map, cannot create nested structure", segment.Key)
+				}
 			}
 		}
+	}
+
+	return nil
+}
+
+// setValueAtArrayIndex sets a value at a specific array index
+func (pe *PathEvaluator) setValueAtArrayIndex(parent map[string]interface{}, arrayKey string, index int, isNegative bool, value string) error {
+	// Get or create the array
+	var arr []interface{}
+	if existing, exists := parent[arrayKey]; exists {
+		if existingArr, ok := existing.([]interface{}); ok {
+			arr = existingArr
+		} else {
+			return fmt.Errorf("key %s exists but is not an array", arrayKey)
+		}
+	} else {
+		arr = make([]interface{}, 0)
+	}
+
+	// Calculate actual index
+	actualIndex := index
+	if isNegative {
+		if len(arr) == 0 {
+			return fmt.Errorf("cannot use negative index %d on empty array", index)
+		}
+		actualIndex = len(arr) + index // index is negative, so this is len(arr) - abs(index)
+		if actualIndex < 0 {
+			return fmt.Errorf("negative index %d is out of bounds for array of length %d", index, len(arr))
+		}
+	}
+
+	// Extend array if necessary (but only for positive indices)
+	if actualIndex >= len(arr) {
+		// Extend array with nil values
+		for len(arr) <= actualIndex {
+			arr = append(arr, nil)
+		}
+	}
+
+	// Set the value
+	arr[actualIndex] = pe.convertValue(value)
+	parent[arrayKey] = arr
+
+	return nil
+}
+
+// navigateToArrayElement navigates to an array element and updates the current pointer
+func (pe *PathEvaluator) navigateToArrayElement(current *map[string]interface{}, arrayKey string, index int, isNegative bool) error {
+	// Get or create the array
+	var arr []interface{}
+	if arrayVal, exists := (*current)[arrayKey]; exists {
+		if existingArr, ok := arrayVal.([]interface{}); ok {
+			arr = existingArr
+		} else {
+			return fmt.Errorf("key %s exists but is not an array", arrayKey)
+		}
+	} else {
+		// Create array if it doesn't exist
+		arr = make([]interface{}, 0)
+		(*current)[arrayKey] = arr
+	}
+
+	// Calculate actual index
+	actualIndex := index
+	if isNegative {
+		if len(arr) == 0 {
+			return fmt.Errorf("cannot use negative index %d on empty array", index)
+		}
+		actualIndex = len(arr) + index // index is negative, so this is len(arr) - abs(index)
+		if actualIndex < 0 {
+			return fmt.Errorf("negative index %d is out of bounds for array of length %d", index, len(arr))
+		}
+	}
+
+	// Extend array if necessary (but only for positive indices)
+	if actualIndex >= len(arr) && !isNegative {
+		for len(arr) <= actualIndex {
+			arr = append(arr, make(map[string]interface{}))
+		}
+		(*current)[arrayKey] = arr
+	}
+
+	// Check bounds after extension
+	if actualIndex >= len(arr) {
+		return fmt.Errorf("index %d is out of bounds for array of length %d", actualIndex, len(arr))
+	}
+
+	// Navigate to the array element
+	element := arr[actualIndex]
+	if elementMap, ok := element.(map[string]interface{}); ok {
+		*current = elementMap
+	} else {
+		// Create a map if the element is not already a map
+		newMap := make(map[string]interface{})
+		arr[actualIndex] = newMap
+		(*current)[arrayKey] = arr
+		*current = newMap
 	}
 
 	return nil
@@ -166,25 +312,37 @@ func (pe *PathEvaluator) replaceValueAtPath(target map[string]interface{}, path 
 	current := target
 	for i, segment := range segments {
 		if i == len(segments)-1 {
-			// Last segment, set the value with type conversion
-			current[segment] = pe.convertValue(value)
-			return nil
+			// Last segment, set the value
+			if segment.ArrayIndex != nil {
+				// Array access
+				return pe.setValueAtArrayIndex(current, segment.Key, *segment.ArrayIndex, segment.IsNegative, value)
+			} else {
+				// Regular key access
+				current[segment.Key] = pe.convertValue(value)
+				return nil
+			}
 		}
 
 		// Navigate to next level
-		if nextMap, ok := current[segment].(map[string]interface{}); ok {
-			current = nextMap
+		if segment.ArrayIndex != nil {
+			// Navigate through array
+			if err := pe.navigateToArrayElement(&current, segment.Key, *segment.ArrayIndex, segment.IsNegative); err != nil {
+				return err
+			}
 		} else {
-			return fmt.Errorf("path segment %s is not a map, cannot navigate", segment)
+			if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
+				current = nextMap
+			} else {
+				return fmt.Errorf("path segment %s is not a map, cannot navigate", segment.Key)
+			}
 		}
 	}
 
 	return nil
 }
 
-// parseJSONPath parses a JSONPath expression into segments
-// This is a simplified parser that handles basic dot notation
-func (pe *PathEvaluator) parseJSONPath(path string) ([]string, error) {
+// parseJSONPath parses a JSONPath expression into segments with array index support
+func (pe *PathEvaluator) parseJSONPath(path string) ([]PathSegment, error) {
 	if len(path) < 1 || path[0] != '$' {
 		return nil, fmt.Errorf("invalid JSONPath: must start with '$'")
 	}
@@ -199,26 +357,46 @@ func (pe *PathEvaluator) parseJSONPath(path string) ([]string, error) {
 
 	// If path is empty after removing '$' (and potentially '.'), return empty slice
 	if path == "" {
-		return []string{}, nil
+		return []PathSegment{}, nil
 	}
 
-	// Split by dots
-	segments := []string{}
-	current := ""
+	// Regular expressions for parsing
+	arrayIndexPattern := regexp.MustCompile(`^(.+)\[(-?\d+)\]$`)
 
-	for i, char := range path {
-		if char == '.' {
-			if current != "" {
-				segments = append(segments, current)
-				current = ""
-			}
-		} else {
-			current += string(char)
+	// Split by dots and parse each segment
+	segments := []PathSegment{}
+	rawSegments := strings.Split(path, ".")
+
+	for _, rawSegment := range rawSegments {
+		if rawSegment == "" {
+			continue
 		}
 
-		// Handle last segment
-		if i == len(path)-1 && current != "" {
-			segments = append(segments, current)
+		// Check if this segment has an array index
+		if matches := arrayIndexPattern.FindStringSubmatch(rawSegment); matches != nil {
+			key := matches[1]
+			indexStr := matches[2]
+
+			// Parse the index
+			index, err := strconv.Atoi(indexStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid array index in segment '%s': %w", rawSegment, err)
+			}
+
+			isNegative := index < 0
+
+			segments = append(segments, PathSegment{
+				Key:        key,
+				ArrayIndex: &index,
+				IsNegative: isNegative,
+			})
+		} else {
+			// Regular segment without array index
+			segments = append(segments, PathSegment{
+				Key:        rawSegment,
+				ArrayIndex: nil,
+				IsNegative: false,
+			})
 		}
 	}
 

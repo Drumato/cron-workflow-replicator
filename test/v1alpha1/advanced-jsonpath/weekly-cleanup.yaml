@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  creationTimestamp: null
+  labels:
+    app: cleanup-system
+    environment: production
+    schedule-type: weekly
+  name: weekly-cleanup-cronworkflow
+  namespace: maintenance
+spec:
+  schedule: 0 3 * * 0
+  workflowSpec:
+    arguments: {}
+status:
+  active: null
+  conditions: null
+  failed: 0
+  lastScheduledTime: null
+  phase: ""
+  succeeded: 0
