@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: array-values-example
+  namespace: default
+spec:
+  schedule: "0 2 * * *"
+  workflowSpec:
+    entrypoint: main-template
+    # These will be set/overwritten by pathValues
+    arguments:
+      parameters: []
+    templates:
+    - name: placeholder-template-1
+      container:
+        image: alpine:latest
+        command: ["/bin/sh"]
+        args: []
+        env: []
+        volumeMounts: []
+    - name: placeholder-template-2
+      container:
+        image: alpine:latest
+        command: ["/bin/sh"]
+        args: []
+        env: []
+    - name: placeholder-template-3
+      container:
+        image: alpine:latest
+        command: []
+        args: []

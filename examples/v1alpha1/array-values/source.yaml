@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: source-configmap
+  namespace: default
+data:
+  cronworkflow.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: CronWorkflow
+    metadata:
+      name: array-values-example
+      namespace: default
+    spec:
+      schedule: "0 2 * * *"
+      workflowSpec:
+        entrypoint: main-template
+        # These will be set/overwritten by pathValues
+        arguments:
+          parameters: []
+          artifacts: []
+        templates:
+        - name: placeholder-template
+          container:
+            image: alpine:latest
+            command: ["/bin/sh"]
+            args: []
+            env: []
+            volumeMounts: []
+        volumes: []

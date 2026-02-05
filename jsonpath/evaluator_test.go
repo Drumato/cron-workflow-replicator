@@ -503,6 +503,204 @@ func TestPathEvaluator_ArrayOperations(t *testing.T) {
 	}
 }
 
+func TestPathEvaluator_ArrayValueAssignment(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	evaluator := NewPathEvaluator(logger)
+
+	tests := []struct {
+		name      string
+		baseCW    *argoworkflowsv1alpha1.CronWorkflow
+		paths     []config.PathValue
+		expectErr bool
+		validator func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow)
+	}{
+		{
+			name: "basic array assignment",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.arguments.parameters", Value: `[{"name": "env", "value": "prod"}, {"name": "version", "value": "1.0"}]`},
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				require.NotNil(t, cw.Spec.WorkflowSpec)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Arguments)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Arguments.Parameters)
+				require.Len(t, cw.Spec.WorkflowSpec.Arguments.Parameters, 2)
+				assert.Equal(t, "env", cw.Spec.WorkflowSpec.Arguments.Parameters[0].Name)
+				assert.Equal(t, "prod", cw.Spec.WorkflowSpec.Arguments.Parameters[0].Value.String())
+				assert.Equal(t, "version", cw.Spec.WorkflowSpec.Arguments.Parameters[1].Name)
+				assert.Equal(t, "1.0", cw.Spec.WorkflowSpec.Arguments.Parameters[1].Value.String())
+			},
+		},
+		{
+			name: "simple string array assignment",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.templates[0].container.args", Value: `["arg1", "arg2", "arg3"]`},
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				require.NotNil(t, cw.Spec.WorkflowSpec)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates, 1)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates[0].Container)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates[0].Container.Args, 3)
+				assert.Equal(t, "arg1", cw.Spec.WorkflowSpec.Templates[0].Container.Args[0])
+				assert.Equal(t, "arg2", cw.Spec.WorkflowSpec.Templates[0].Container.Args[1])
+				assert.Equal(t, "arg3", cw.Spec.WorkflowSpec.Templates[0].Container.Args[2])
+			},
+		},
+		{
+			name: "empty array assignment",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.templates[0].container.args", Value: `[]`},
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				require.NotNil(t, cw.Spec.WorkflowSpec)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates, 1)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates[0].Container)
+				require.Empty(t, cw.Spec.WorkflowSpec.Templates[0].Container.Args)
+			},
+		},
+		{
+			name: "array replacement - should overwrite existing array",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.templates[0].container.args[0]", Value: "old-arg1"},
+				{Path: "$.spec.workflowSpec.templates[0].container.args[1]", Value: "old-arg2"},
+				{Path: "$.spec.workflowSpec.templates[0].container.args", Value: `["new-arg1", "new-arg2", "new-arg3"]`},
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				require.NotNil(t, cw.Spec.WorkflowSpec)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates, 1)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates[0].Container)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates[0].Container.Args, 3)
+				assert.Equal(t, "new-arg1", cw.Spec.WorkflowSpec.Templates[0].Container.Args[0])
+				assert.Equal(t, "new-arg2", cw.Spec.WorkflowSpec.Templates[0].Container.Args[1])
+				assert.Equal(t, "new-arg3", cw.Spec.WorkflowSpec.Templates[0].Container.Args[2])
+			},
+		},
+		{
+			name: "mixed operations - individual and whole array",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.templates[0].name", Value: "template-name"},
+				{Path: "$.spec.workflowSpec.templates[0].container.args", Value: `["arg1", "arg2"]`},
+				{Path: "$.spec.workflowSpec.templates[1].name", Value: "second-template"},
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				require.NotNil(t, cw.Spec.WorkflowSpec)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates, 2)
+				assert.Equal(t, "template-name", cw.Spec.WorkflowSpec.Templates[0].Name)
+				require.NotNil(t, cw.Spec.WorkflowSpec.Templates[0].Container)
+				require.Len(t, cw.Spec.WorkflowSpec.Templates[0].Container.Args, 2)
+				assert.Equal(t, "arg1", cw.Spec.WorkflowSpec.Templates[0].Container.Args[0])
+				assert.Equal(t, "arg2", cw.Spec.WorkflowSpec.Templates[0].Container.Args[1])
+				assert.Equal(t, "second-template", cw.Spec.WorkflowSpec.Templates[1].Name)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Make a copy to avoid modifying the test case
+			cw := *tt.baseCW
+
+			err := evaluator.ApplyPaths(&cw, tt.paths)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.validator != nil {
+					tt.validator(t, &cw)
+				}
+			}
+		})
+	}
+}
+
+func TestPathEvaluator_isArrayElementPath(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	evaluator := NewPathEvaluator(logger)
+
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{
+			name:     "array element path - positive index",
+			path:     "$.spec.templates[0].name",
+			expected: true,
+		},
+		{
+			name:     "array element path - negative index",
+			path:     "$.spec.templates[-1].name",
+			expected: true,
+		},
+		{
+			name:     "array element path - multi-digit index",
+			path:     "$.spec.templates[123].name",
+			expected: true,
+		},
+		{
+			name:     "array path without index",
+			path:     "$.spec.templates",
+			expected: false,
+		},
+		{
+			name:     "nested path without array index",
+			path:     "$.spec.workflowSpec.arguments.parameters",
+			expected: false,
+		},
+		{
+			name:     "path ending with regular property",
+			path:     "$.spec.schedule",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := evaluator.isArrayElementPath(tt.path)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestPathEvaluator_ErrorHandling(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	evaluator := NewPathEvaluator(logger)
@@ -513,6 +711,7 @@ func TestPathEvaluator_ErrorHandling(t *testing.T) {
 		paths     []config.PathValue
 		expectErr bool
 		errorMsg  string
+		validator func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow)
 	}{
 		{
 			name: "negative index on empty array should error",
@@ -574,6 +773,22 @@ func TestPathEvaluator_ErrorHandling(t *testing.T) {
 			expectErr: true,
 			errorMsg:  "is not an array",
 		},
+		{
+			name: "invalid JSON array should be treated as string",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.schedule", Value: "[invalid json array"}, // Invalid JSON
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				assert.Equal(t, "[invalid json array", cw.Spec.Schedule)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -590,6 +805,9 @@ func TestPathEvaluator_ErrorHandling(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+				if tt.validator != nil {
+					tt.validator(t, &cw)
+				}
 			}
 		})
 	}

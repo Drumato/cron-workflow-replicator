@@ -1,0 +1,41 @@
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    baseManifest: "./examples/v1alpha1/array-values/base-manifest.yaml"
+    values:
+      # Array value assignment example
+      - filename: "array-values-demo"
+        paths:
+          # Basic metadata
+          - path: "$.metadata.name"
+            value: "array-values-demo"
+          - path: "$.metadata.labels.example"
+            value: "array-values"
+
+          # Example 1: Set entire arguments.parameters array with JSON objects
+          - path: "$.spec.workflowSpec.arguments.parameters"
+            value: '[{"name": "environment", "value": "production"}, {"name": "version", "value": "v1.2.3"}, {"name": "replicas", "value": "3"}]'
+
+          # Example 2: Set container args as a string array
+          - path: "$.spec.workflowSpec.templates[0].container.args"
+            value: '["--config", "/etc/config.yaml", "--log-level", "info"]'
+
+          # Example 3: Set empty array (clears existing array)
+          - path: "$.spec.workflowSpec.templates[1].container.env"
+            value: '[]'
+
+          # Example 4: Set nested array with complex values
+          - path: "$.spec.workflowSpec.templates[0].container.volumeMounts"
+            value: '[{"name": "config", "mountPath": "/etc/config"}, {"name": "data", "mountPath": "/data", "readOnly": true}]'
+
+          # Example 5: Individual element assignment still works alongside array assignment
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "main-template"
+          - path: "$.spec.workflowSpec.templates[1].name"
+            value: "secondary-template"
+
+          # Example 6: Mixed operations - replace entire array then modify individual element
+          - path: "$.spec.workflowSpec.templates[2].container.command"
+            value: '["sh", "-c", "echo start"]'
+          - path: "$.spec.workflowSpec.templates[2].container.command[2]"
+            value: "echo modified"

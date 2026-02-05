@@ -16,8 +16,8 @@ import (
 // PathSegment represents a segment in a JSONPath
 type PathSegment struct {
 	Key        string
-	ArrayIndex *int  // nil if not an array access
-	IsNegative bool  // true for negative indices like [-1]
+	ArrayIndex *int // nil if not an array access
+	IsNegative bool // true for negative indices like [-1]
 }
 
 // PathEvaluator handles JSONPath evaluation and value setting
@@ -140,6 +140,17 @@ func (pe *PathEvaluator) convertValue(value string) interface{} {
 
 // setValueAtPath sets a value at the specified JSONPath in the target map
 func (pe *PathEvaluator) setValueAtPath(target map[string]interface{}, path string, value string) error {
+	// Convert value first to check if it's an array
+	convertedValue := pe.convertValue(value)
+
+	// Check if this is an array value and the path doesn't specify an array element
+	if arrayVal, isArray := convertedValue.([]interface{}); isArray {
+		if !pe.isArrayElementPath(path) {
+			// This is a whole array assignment
+			return pe.setArrayValue(target, path, arrayVal)
+		}
+	}
+
 	// Compile JSONPath
 	compiled, err := jsonpath.Compile(path)
 	if err != nil {
@@ -330,6 +341,65 @@ func (pe *PathEvaluator) replaceValueAtPath(target map[string]interface{}, path 
 				return err
 			}
 		} else {
+			if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
+				current = nextMap
+			} else {
+				return fmt.Errorf("path segment %s is not a map, cannot navigate", segment.Key)
+			}
+		}
+	}
+
+	return nil
+}
+
+// isArrayElementPath checks if the JSONPath specifies an array element (e.g., $.path[0] or $.path[0].name)
+func (pe *PathEvaluator) isArrayElementPath(path string) bool {
+	// Parse the path to check if any segment contains an array index
+	segments, err := pe.parseJSONPath(path)
+	if err != nil {
+		return false
+	}
+
+	// Check if any segment has an array index
+	for _, segment := range segments {
+		if segment.ArrayIndex != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// setArrayValue sets an entire array at the specified JSONPath
+func (pe *PathEvaluator) setArrayValue(target map[string]interface{}, path string, arrayVal []interface{}) error {
+	// Parse the JSONPath to understand the structure
+	segments, err := pe.parseJSONPath(path)
+	if err != nil {
+		return fmt.Errorf("failed to parse JSONPath: %w", err)
+	}
+
+	// Navigate to the parent of the target field
+	current := target
+	for i, segment := range segments {
+		if i == len(segments)-1 {
+			// Last segment, set the array value
+			current[segment.Key] = arrayVal
+			return nil
+		}
+
+		// Navigate to next level
+		if segment.ArrayIndex != nil {
+			// Navigate through array
+			if err := pe.navigateToArrayElement(&current, segment.Key, *segment.ArrayIndex, segment.IsNegative); err != nil {
+				return err
+			}
+		} else {
+			// Create map if it doesn't exist
+			if _, exists := current[segment.Key]; !exists {
+				current[segment.Key] = make(map[string]interface{})
+			}
+
+			// Move to next level
 			if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
 				current = nextMap
 			} else {
