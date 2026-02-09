@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: daily-backup-cronworkflow
+  namespace: production
+spec:
+  schedule: 0 2 * * *
+  workflowSpec:
+    entrypoint: backup-task
+    templates:
+      - container:
+          args:
+            - -c 'backup-script.sh --env production'
+          command:
+            - /bin/sh
+          image: backup:v1.0.0
+        name: backup-task

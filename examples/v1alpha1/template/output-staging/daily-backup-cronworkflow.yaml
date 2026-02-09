@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: daily-backup-cronworkflow
+  namespace: staging
+spec:
+  schedule: 0 3 * * *
+  workflowSpec:
+    entrypoint: backup-task
+    templates:
+      - container:
+          args:
+            - -c 'backup-script.sh --env staging --verbose'
+          command:
+            - /bin/sh
+          image: backup:v0.9.0
+        name: backup-task

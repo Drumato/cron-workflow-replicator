@@ -1,0 +1,22 @@
+units:
+  - outputDirectory: "{{.Var.outputBase}}-{{.Var.environment}}"
+    apiVersion: "{{.Var.apiVersion}}"
+    values:
+      - filename: "{{.Var.jobName}}-cronworkflow"
+        paths:
+          - path: "$.metadata.name"
+            value: "{{.Var.jobName}}-cronworkflow"
+          - path: "$.metadata.namespace"
+            value: "{{.Var.namespace}}"
+          - path: "$.spec.schedule"
+            value: "{{.Var.schedule}}"
+          - path: "$.spec.workflowSpec.entrypoint"
+            value: "{{.Var.entrypoint}}"
+          - path: "$.spec.workflowSpec.templates[0].name"
+            value: "{{.Var.entrypoint}}"
+          - path: "$.spec.workflowSpec.templates[0].container.image"
+            value: "{{.Var.image}}"
+          - path: "$.spec.workflowSpec.templates[0].container.command[0]"
+            value: "{{.Var.command}}"
+          - path: "$.spec.workflowSpec.templates[0].container.args[0]"
+            value: "{{.Var.args}}"
