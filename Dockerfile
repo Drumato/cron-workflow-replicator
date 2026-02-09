@@ -7,6 +7,7 @@ RUN go mod download
 
 COPY ./main.go ./
 COPY ./cmd ./cmd
+COPY ./template ./template
 COPY ./config ./config
 COPY ./runner ./runner
 COPY ./types ./types
