@@ -380,11 +380,11 @@ func TestManager_UpdateKustomization_RecreateMode(t *testing.T) {
 func TestManager_UpdateKustomization_MergeVsRecreateComparison(t *testing.T) {
 	// Test both merge and recreate modes to ensure they behave differently
 	tests := []struct {
-		name      string
-		recreate  bool
-		expected  []string
-		excluded  []string
-		totalLen  int
+		name     string
+		recreate bool
+		expected []string
+		excluded []string
+		totalLen int
 	}{
 		{
 			name:     "merge mode preserves existing resources",

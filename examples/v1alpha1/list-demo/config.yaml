@@ -1,0 +1,18 @@
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    kustomize:
+      updateResources: true
+    values:
+      - filename: "daily-job"
+        paths:
+          - path: "$.metadata.name"
+            value: "daily-backup"
+      - filename: "daily-job"
+        paths:
+          - path: "$.metadata.name"
+            value: "daily-cleanup"
+      - filename: "weekly-job"
+        paths:
+          - path: "$.metadata.name"
+            value: "weekly-report"
