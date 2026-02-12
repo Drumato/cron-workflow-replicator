@@ -19,7 +19,7 @@ func TestManager_UpdateKustomization_NewFile(t *testing.T) {
 	outputDir := "/output"
 	generatedFiles := []string{"backup-job.yaml", "cleanup-job.yaml"}
 
-	err := manager.UpdateKustomization(outputDir, generatedFiles)
+	err := manager.UpdateKustomization(outputDir, generatedFiles, false)
 	require.NoError(t, err)
 
 	// Check that kustomization.yaml was created
@@ -66,7 +66,7 @@ func TestManager_UpdateKustomization_ExistingFile(t *testing.T) {
 
 	// Update with new files
 	generatedFiles := []string{"backup-job.yaml", "cleanup-job.yaml"}
-	err = manager.UpdateKustomization(outputDir, generatedFiles)
+	err = manager.UpdateKustomization(outputDir, generatedFiles, false)
 	require.NoError(t, err)
 
 	// Read and verify the updated content
@@ -110,7 +110,7 @@ func TestManager_UpdateKustomization_NoDuplicates(t *testing.T) {
 
 	// Try to add files, including one that already exists
 	generatedFiles := []string{"backup-job.yaml", "cleanup-job.yaml"}
-	err = manager.UpdateKustomization(outputDir, generatedFiles)
+	err = manager.UpdateKustomization(outputDir, generatedFiles, false)
 	require.NoError(t, err)
 
 	// Read and verify the updated content
@@ -135,7 +135,7 @@ func TestManager_UpdateKustomization_EmptyFilesList(t *testing.T) {
 	outputDir := "/output"
 	generatedFiles := []string{}
 
-	err := manager.UpdateKustomization(outputDir, generatedFiles)
+	err := manager.UpdateKustomization(outputDir, generatedFiles, false)
 	require.NoError(t, err)
 
 	// Should not create kustomization.yaml if no files to add
@@ -151,7 +151,7 @@ func TestManager_UpdateKustomization_FilenamesOnly(t *testing.T) {
 	// Pass full paths, but only filenames should be stored
 	generatedFiles := []string{"/some/path/backup-job.yaml", "cleanup-job.yaml"}
 
-	err := manager.UpdateKustomization(outputDir, generatedFiles)
+	err := manager.UpdateKustomization(outputDir, generatedFiles, false)
 	require.NoError(t, err)
 
 	// Read and verify the content
@@ -184,7 +184,7 @@ func TestManager_UpdateKustomization_InvalidExistingFile(t *testing.T) {
 	require.NoError(t, err)
 
 	generatedFiles := []string{"backup-job.yaml"}
-	err = manager.UpdateKustomization(outputDir, generatedFiles)
+	err = manager.UpdateKustomization(outputDir, generatedFiles, false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse existing kustomization.yaml")
 }
@@ -292,7 +292,7 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 			}
 
 			manager := NewManager(fs)
-			err := manager.UpdateKustomization(outputDir, tt.generatedFiles)
+			err := manager.UpdateKustomization(outputDir, tt.generatedFiles, false)
 
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -328,4 +328,159 @@ func TestManager_UpdateKustomization_ErrorScenarios(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestManager_UpdateKustomization_RecreateMode(t *testing.T) {
+	fs := filesystem.NewMemoryFileSystem()
+	manager := NewManager(fs)
+
+	outputDir := "/output"
+	kustomizationPath := filepath.Join(outputDir, "kustomization.yaml")
+
+	// Create existing kustomization.yaml with some existing resources
+	existingKustomization := types.Kustomization{
+		TypeMeta: types.TypeMeta{
+			APIVersion: "kustomize.config.k8s.io/v1beta1",
+			Kind:       "Kustomization",
+		},
+		Resources: []string{"existing-job.yaml", "old-job.yaml"},
+	}
+	existingData, err := kyaml.Marshal(existingKustomization)
+	require.NoError(t, err)
+
+	err = fs.MkdirAll(outputDir, 0755)
+	require.NoError(t, err)
+	err = fs.WriteFile(kustomizationPath, existingData, 0644)
+	require.NoError(t, err)
+
+	// Update with recreate=true, should ignore existing resources
+	generatedFiles := []string{"backup-job.yaml", "cleanup-job.yaml"}
+	err = manager.UpdateKustomization(outputDir, generatedFiles, true)
+	require.NoError(t, err)
+
+	// Read and verify the recreated content
+	data, err := fs.ReadFile(kustomizationPath)
+	require.NoError(t, err)
+
+	var kustomization types.Kustomization
+	err = kyaml.Unmarshal(data, &kustomization)
+	require.NoError(t, err)
+
+	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.APIVersion)
+	assert.Equal(t, "Kustomization", kustomization.Kind)
+	// Should NOT contain existing resources
+	assert.NotContains(t, kustomization.Resources, "existing-job.yaml")
+	assert.NotContains(t, kustomization.Resources, "old-job.yaml")
+	// Should only contain new resources
+	assert.Contains(t, kustomization.Resources, "backup-job.yaml")
+	assert.Contains(t, kustomization.Resources, "cleanup-job.yaml")
+	assert.Len(t, kustomization.Resources, 2)
+}
+
+func TestManager_UpdateKustomization_MergeVsRecreateComparison(t *testing.T) {
+	// Test both merge and recreate modes to ensure they behave differently
+	tests := []struct {
+		name      string
+		recreate  bool
+		expected  []string
+		excluded  []string
+		totalLen  int
+	}{
+		{
+			name:     "merge mode preserves existing resources",
+			recreate: false,
+			expected: []string{"existing-job.yaml", "old-job.yaml", "backup-job.yaml", "cleanup-job.yaml"},
+			excluded: []string{},
+			totalLen: 4,
+		},
+		{
+			name:     "recreate mode ignores existing resources",
+			recreate: true,
+			expected: []string{"backup-job.yaml", "cleanup-job.yaml"},
+			excluded: []string{"existing-job.yaml", "old-job.yaml"},
+			totalLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := filesystem.NewMemoryFileSystem()
+			manager := NewManager(fs)
+
+			outputDir := "/output"
+			kustomizationPath := filepath.Join(outputDir, "kustomization.yaml")
+
+			// Create existing kustomization.yaml
+			existingKustomization := types.Kustomization{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "kustomize.config.k8s.io/v1beta1",
+					Kind:       "Kustomization",
+				},
+				Resources: []string{"existing-job.yaml", "old-job.yaml"},
+			}
+			existingData, err := kyaml.Marshal(existingKustomization)
+			require.NoError(t, err)
+
+			err = fs.MkdirAll(outputDir, 0755)
+			require.NoError(t, err)
+			err = fs.WriteFile(kustomizationPath, existingData, 0644)
+			require.NoError(t, err)
+
+			// Update with specified mode
+			generatedFiles := []string{"backup-job.yaml", "cleanup-job.yaml"}
+			err = manager.UpdateKustomization(outputDir, generatedFiles, tt.recreate)
+			require.NoError(t, err)
+
+			// Read and verify
+			data, err := fs.ReadFile(kustomizationPath)
+			require.NoError(t, err)
+
+			var kustomization types.Kustomization
+			err = kyaml.Unmarshal(data, &kustomization)
+			require.NoError(t, err)
+
+			assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.APIVersion)
+			assert.Equal(t, "Kustomization", kustomization.Kind)
+
+			for _, resource := range tt.expected {
+				assert.Contains(t, kustomization.Resources, resource, "should contain %s", resource)
+			}
+
+			for _, resource := range tt.excluded {
+				assert.NotContains(t, kustomization.Resources, resource, "should not contain %s", resource)
+			}
+
+			assert.Len(t, kustomization.Resources, tt.totalLen)
+		})
+	}
+}
+
+func TestManager_UpdateKustomization_RecreateWithNoExistingFile(t *testing.T) {
+	fs := filesystem.NewMemoryFileSystem()
+	manager := NewManager(fs)
+
+	outputDir := "/output"
+	generatedFiles := []string{"backup-job.yaml", "cleanup-job.yaml"}
+
+	// Test recreate mode when no existing file exists - should behave same as merge mode
+	err := manager.UpdateKustomization(outputDir, generatedFiles, true)
+	require.NoError(t, err)
+
+	// Check that kustomization.yaml was created
+	kustomizationPath := filepath.Join(outputDir, "kustomization.yaml")
+	assert.True(t, fs.Exists(kustomizationPath))
+
+	// Read and verify the content
+	data, err := fs.ReadFile(kustomizationPath)
+	require.NoError(t, err)
+
+	var kustomization types.Kustomization
+	err = kyaml.Unmarshal(data, &kustomization)
+	require.NoError(t, err)
+
+	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", kustomization.APIVersion)
+	assert.Equal(t, "Kustomization", kustomization.Kind)
+	assert.Contains(t, kustomization.Resources, "backup-job.yaml")
+	assert.Contains(t, kustomization.Resources, "cleanup-job.yaml")
+	assert.Len(t, kustomization.Resources, 2)
 }

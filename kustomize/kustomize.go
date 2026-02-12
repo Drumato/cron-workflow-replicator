@@ -27,7 +27,8 @@ func NewManager(fs filesystem.FileSystem) *Manager {
 
 // UpdateKustomization updates the kustomization.yaml file in the given output directory
 // with the provided list of generated files
-func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string) error {
+// If recreate is true, the existing kustomization.yaml will be completely recreated instead of merged
+func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string, recreate bool) error {
 	// Input validation
 	if outputDir == "" {
 		return fmt.Errorf("output directory cannot be empty")
@@ -67,8 +68,8 @@ func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string)
 		Resources: []string{},
 	}
 
-	// Try to read existing kustomization.yaml if it exists
-	if m.fs.Exists(kustomizationPath) {
+	// Try to read existing kustomization.yaml if it exists and recreate is false
+	if !recreate && m.fs.Exists(kustomizationPath) {
 		slog.Debug("reading existing kustomization.yaml", "path", kustomizationPath)
 
 		data, err := m.fs.ReadFile(kustomizationPath)
@@ -101,6 +102,8 @@ func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string)
 				slog.Info("initializing empty resources list in existing kustomization.yaml", "path", kustomizationPath)
 			}
 		}
+	} else if recreate {
+		slog.Debug("recreating kustomization.yaml (recreate mode)", "path", kustomizationPath)
 	} else {
 		slog.Debug("creating new kustomization.yaml", "path", kustomizationPath)
 	}
@@ -142,10 +145,18 @@ func (m *Manager) UpdateKustomization(outputDir string, generatedFiles []string)
 			"Ensure the output directory is writable", kustomizationPath, err)
 	}
 
-	slog.Info("successfully updated kustomization.yaml",
-		"path", kustomizationPath,
-		"totalResources", len(kustomization.Resources),
-		"newResourcesAdded", newResourcesAdded)
+	if recreate {
+		slog.Info("successfully recreated kustomization.yaml",
+			"path", kustomizationPath,
+			"totalResources", len(kustomization.Resources),
+			"mode", "recreate")
+	} else {
+		slog.Info("successfully updated kustomization.yaml",
+			"path", kustomizationPath,
+			"totalResources", len(kustomization.Resources),
+			"newResourcesAdded", newResourcesAdded,
+			"mode", "merge")
+	}
 
 	return nil
 }

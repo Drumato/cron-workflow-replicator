@@ -56,7 +56,16 @@ type Unit struct {
 }
 
 type KustomizeConfig struct {
-	UpdateResources bool `yaml:"updateResources"`
+	UpdateResources bool  `yaml:"updateResources"`
+	RecreateFile    *bool `yaml:"recreateFile,omitempty"`
+}
+
+// GetRecreateFile returns the recreateFile value, defaulting to true if not set
+func (kc *KustomizeConfig) GetRecreateFile() bool {
+	if kc.RecreateFile == nil {
+		return true // Default is true
+	}
+	return *kc.RecreateFile
 }
 
 type PathValue struct {

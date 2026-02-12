@@ -151,9 +151,10 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 	if unit.Kustomize != nil && unit.Kustomize.UpdateResources {
 		r.logger.DebugContext(ctx, "Updating kustomization.yaml",
 			slog.String("outputDir", absoluteOutputDir),
-			slog.Any("generatedFiles", generatedFiles))
+			slog.Any("generatedFiles", generatedFiles),
+			slog.Bool("recreateFile", unit.Kustomize.GetRecreateFile()))
 
-		if err := r.kustomizeManager.UpdateKustomization(absoluteOutputDir, generatedFiles); err != nil {
+		if err := r.kustomizeManager.UpdateKustomization(absoluteOutputDir, generatedFiles, unit.Kustomize.GetRecreateFile()); err != nil {
 			r.logger.WarnContext(ctx, "Failed to update kustomization.yaml",
 				slog.String("error", err.Error()))
 			// Don't fail the entire process if kustomize update fails

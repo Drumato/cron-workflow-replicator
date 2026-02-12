@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
@@ -542,12 +543,13 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 			shouldCreateKustomization: false,
 		},
 		{
-			name: "existing kustomization.yaml gets updated",
+			name: "existing kustomization.yaml gets updated (merge mode)",
 			unit: config.Unit{
 				OutputDirectory: "output",
 				APIVersion:      config.APIVersionV1Alpha1,
 				Kustomize: &config.KustomizeConfig{
 					UpdateResources: true,
+					RecreateFile:    func() *bool { b := false; return &b }(),
 				},
 				Values: []config.Value{
 					{
@@ -569,6 +571,35 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 			},
 			shouldCreateKustomization: true,
 		},
+		{
+			name: "existing kustomization.yaml gets recreated (recreate mode - default)",
+			unit: config.Unit{
+				OutputDirectory: "output",
+				APIVersion:      config.APIVersionV1Alpha1,
+				Kustomize: &config.KustomizeConfig{
+					UpdateResources: true,
+					// RecreateFile not set, defaults to true
+				},
+				Values: []config.Value{
+					{
+						Filename: "backup-job",
+					},
+				},
+			},
+			configDir: "/config",
+			expectedFiles: []string{
+				"/config/output/backup-job.yaml",
+				"/config/output/kustomization.yaml",
+			},
+			expectedKustomization: &types.Kustomization{
+				TypeMeta: types.TypeMeta{
+					APIVersion: "kustomize.config.k8s.io/v1beta1",
+					Kind:       "Kustomization",
+				},
+				Resources: []string{"backup-job.yaml"}, // existing resources are ignored in recreate mode
+			},
+			shouldCreateKustomization: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -577,8 +608,8 @@ func TestRunner_KustomizeIntegration(t *testing.T) {
 			fs := filesystem.NewMemoryFileSystem()
 			kustomizeManager := kustomize.NewManager(fs)
 
-			// Create existing kustomization.yaml for the "existing" test case
-			if tt.name == "existing kustomization.yaml gets updated" {
+			// Create existing kustomization.yaml for the existing kustomization test cases
+			if strings.Contains(tt.name, "existing kustomization.yaml gets") {
 				existingKustomization := types.Kustomization{
 					TypeMeta: types.TypeMeta{
 						APIVersion: "kustomize.config.k8s.io/v1beta1",
