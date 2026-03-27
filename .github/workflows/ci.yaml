@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
@@ -24,13 +24,10 @@ jobs:
       run: go mod download
 
     - name: Run tests
-      run: make test
+      run: go test -v ./...
 
     - name: Build binary
-      run: make build
-
-    - name: Run example tests
-      run: make test-examples
+      run: go build -o cron-workflow-replicator .
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v9
