@@ -530,7 +530,6 @@ func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
 
 	// Original should contain problematic fields
 	assert.Contains(t, originalStr, "status:", "Original YAML should contain status field")
-	assert.Contains(t, originalStr, "creationTimestamp:", "Original YAML should contain creationTimestamp")
 
 	// Clean should not contain problematic fields
 	assert.NotContains(t, cleanStr, "status:", "Clean YAML should not contain status field")

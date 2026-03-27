@@ -210,6 +210,81 @@ func TestPathEvaluator_ApplyPaths(t *testing.T) {
 	}
 }
 
+func TestPathEvaluator_ApplyPaths_FilterExpression(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	evaluator := NewPathEvaluator(logger)
+
+	tests := []struct {
+		name      string
+		baseCW    *argoworkflowsv1alpha1.CronWorkflow
+		paths     []config.PathValue
+		expectErr bool
+		validator func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow)
+	}{
+		{
+			name: "filter expression to set value on matching template",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+					WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
+						Templates: []argoworkflowsv1alpha1.Template{
+							{Name: "setup"},
+							{Name: "task"},
+						},
+					},
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.templates[?(@.name == 'task')].serviceAccountName", Value: "my-sa"},
+			},
+			expectErr: false,
+			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
+				assert.Equal(t, "my-sa", cw.Spec.WorkflowSpec.Templates[1].ServiceAccountName)
+				// Ensure the other template was not modified
+				assert.Empty(t, cw.Spec.WorkflowSpec.Templates[0].ServiceAccountName)
+			},
+		},
+		{
+			name: "filter expression - no match should error",
+			baseCW: &argoworkflowsv1alpha1.CronWorkflow{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "argoproj.io/v1alpha1",
+					Kind:       "CronWorkflow",
+				},
+				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+					WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
+						Templates: []argoworkflowsv1alpha1.Template{
+							{Name: "setup"},
+						},
+					},
+				},
+			},
+			paths: []config.PathValue{
+				{Path: "$.spec.workflowSpec.templates[?(@.name == 'nonexistent')].retryStrategy.limit", Value: "3"},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cw := *tt.baseCW
+			err := evaluator.ApplyPaths(&cw, tt.paths)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.validator != nil {
+					tt.validator(t, &cw)
+				}
+			}
+		})
+	}
+}
+
 func TestPathEvaluator_parseJSONPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	evaluator := NewPathEvaluator(logger)
@@ -285,6 +360,23 @@ func TestPathEvaluator_parseJSONPath(t *testing.T) {
 				{Key: "templates", ArrayIndex: &[]int{0}[0], IsNegative: false},
 				{Key: "container", ArrayIndex: nil, IsNegative: false},
 				{Key: "args", ArrayIndex: &[]int{2}[0], IsNegative: false},
+			},
+		},
+		{
+			name: "filter expression path",
+			path: "$.spec.templates[?(@.name == 'task')].container.image",
+			expected: []PathSegment{
+				{Key: "spec", ArrayIndex: nil, IsNegative: false},
+				{Key: "templates", Filter: &FilterExpression{Key: "name", Value: "task"}},
+				{Key: "container", ArrayIndex: nil, IsNegative: false},
+				{Key: "image", ArrayIndex: nil, IsNegative: false},
+			},
+		},
+		{
+			name: "filter expression only",
+			path: "$.items[?(@.id == 'abc')]",
+			expected: []PathSegment{
+				{Key: "items", Filter: &FilterExpression{Key: "id", Value: "abc"}},
 			},
 		},
 	}
@@ -690,6 +782,11 @@ func TestPathEvaluator_isArrayElementPath(t *testing.T) {
 			name:     "path ending with regular property",
 			path:     "$.spec.schedule",
 			expected: false,
+		},
+		{
+			name:     "filter expression path",
+			path:     "$.spec.templates[?(@.name == 'task')].image",
+			expected: true,
 		},
 	}
 

@@ -13,11 +13,18 @@ import (
 	"github.com/oliveagle/jsonpath"
 )
 
+// FilterExpression represents a filter condition in a JSONPath (e.g., [?(@.name == 'task')])
+type FilterExpression struct {
+	Key   string // filter target key (e.g., "name")
+	Value string // value to match (e.g., "task")
+}
+
 // PathSegment represents a segment in a JSONPath
 type PathSegment struct {
 	Key        string
-	ArrayIndex *int // nil if not an array access
-	IsNegative bool // true for negative indices like [-1]
+	ArrayIndex *int              // nil if not an array access
+	IsNegative bool              // true for negative indices like [-1]
+	Filter     *FilterExpression // nil if not a filter expression
 }
 
 // PathEvaluator handles JSONPath evaluation and value setting
@@ -181,7 +188,11 @@ func (pe *PathEvaluator) createPathAndSetValue(target map[string]any, path strin
 	for i, segment := range segments {
 		if i == len(segments)-1 {
 			// Last segment, set the value
-			if segment.ArrayIndex != nil {
+			if segment.Filter != nil {
+				// Filter-based array access at last segment: need next segment for field key
+				// This case means the path ends with a filter, set the whole matched element
+				return pe.setValueAtArrayElementByFilter(current, segment.Key, segment.Filter, "", pe.convertValue(value))
+			} else if segment.ArrayIndex != nil {
 				// Array access
 				return pe.setValueAtArrayIndex(current, segment.Key, *segment.ArrayIndex, segment.IsNegative, value)
 			} else {
@@ -190,7 +201,12 @@ func (pe *PathEvaluator) createPathAndSetValue(target map[string]any, path strin
 			}
 		} else {
 			// Intermediate segment
-			if segment.ArrayIndex != nil {
+			if segment.Filter != nil {
+				// Navigate through array by filter
+				if err := pe.navigateToArrayElementByFilter(&current, segment.Key, segment.Filter); err != nil {
+					return err
+				}
+			} else if segment.ArrayIndex != nil {
 				// Navigate through array
 				if err := pe.navigateToArrayElement(&current, segment.Key, *segment.ArrayIndex, segment.IsNegative); err != nil {
 					return err
@@ -311,6 +327,62 @@ func (pe *PathEvaluator) navigateToArrayElement(current *map[string]any, arrayKe
 	return nil
 }
 
+// navigateToArrayElementByFilter navigates to the first array element matching the filter and updates the current pointer
+func (pe *PathEvaluator) navigateToArrayElementByFilter(current *map[string]any, arrayKey string, filter *FilterExpression) error {
+	arrayVal, exists := (*current)[arrayKey]
+	if !exists {
+		return fmt.Errorf("key %s does not exist", arrayKey)
+	}
+
+	arr, ok := arrayVal.([]any)
+	if !ok {
+		return fmt.Errorf("key %s is not an array", arrayKey)
+	}
+
+	for _, element := range arr {
+		elementMap, ok := element.(map[string]any)
+		if !ok {
+			continue
+		}
+		if val, exists := elementMap[filter.Key]; exists {
+			if fmt.Sprintf("%v", val) == filter.Value {
+				*current = elementMap
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("no element matching filter [?(@.%s == '%s')] found in array %s", filter.Key, filter.Value, arrayKey)
+}
+
+// setValueAtArrayElementByFilter sets a value on the first array element matching the filter
+func (pe *PathEvaluator) setValueAtArrayElementByFilter(parent map[string]any, arrayKey string, filter *FilterExpression, fieldKey string, value any) error {
+	arrayVal, exists := parent[arrayKey]
+	if !exists {
+		return fmt.Errorf("key %s does not exist", arrayKey)
+	}
+
+	arr, ok := arrayVal.([]any)
+	if !ok {
+		return fmt.Errorf("key %s is not an array", arrayKey)
+	}
+
+	for _, element := range arr {
+		elementMap, ok := element.(map[string]any)
+		if !ok {
+			continue
+		}
+		if val, exists := elementMap[filter.Key]; exists {
+			if fmt.Sprintf("%v", val) == filter.Value {
+				elementMap[fieldKey] = value
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("no element matching filter [?(@.%s == '%s')] found in array %s", filter.Key, filter.Value, arrayKey)
+}
+
 // replaceValueAtPath replaces an existing value at the JSONPath
 func (pe *PathEvaluator) replaceValueAtPath(target map[string]any, path string, value string, existingValue any) error {
 	// Parse the JSONPath to understand the structure
@@ -324,7 +396,9 @@ func (pe *PathEvaluator) replaceValueAtPath(target map[string]any, path string, 
 	for i, segment := range segments {
 		if i == len(segments)-1 {
 			// Last segment, set the value
-			if segment.ArrayIndex != nil {
+			if segment.Filter != nil {
+				return pe.setValueAtArrayElementByFilter(current, segment.Key, segment.Filter, "", pe.convertValue(value))
+			} else if segment.ArrayIndex != nil {
 				// Array access
 				return pe.setValueAtArrayIndex(current, segment.Key, *segment.ArrayIndex, segment.IsNegative, value)
 			} else {
@@ -335,7 +409,11 @@ func (pe *PathEvaluator) replaceValueAtPath(target map[string]any, path string, 
 		}
 
 		// Navigate to next level
-		if segment.ArrayIndex != nil {
+		if segment.Filter != nil {
+			if err := pe.navigateToArrayElementByFilter(&current, segment.Key, segment.Filter); err != nil {
+				return err
+			}
+		} else if segment.ArrayIndex != nil {
 			// Navigate through array
 			if err := pe.navigateToArrayElement(&current, segment.Key, *segment.ArrayIndex, segment.IsNegative); err != nil {
 				return err
@@ -360,9 +438,9 @@ func (pe *PathEvaluator) isArrayElementPath(path string) bool {
 		return false
 	}
 
-	// Check if any segment has an array index
+	// Check if any segment has an array index or filter expression
 	for _, segment := range segments {
-		if segment.ArrayIndex != nil {
+		if segment.ArrayIndex != nil || segment.Filter != nil {
 			return true
 		}
 	}
@@ -388,7 +466,11 @@ func (pe *PathEvaluator) setArrayValue(target map[string]any, path string, array
 		}
 
 		// Navigate to next level
-		if segment.ArrayIndex != nil {
+		if segment.Filter != nil {
+			if err := pe.navigateToArrayElementByFilter(&current, segment.Key, segment.Filter); err != nil {
+				return err
+			}
+		} else if segment.ArrayIndex != nil {
 			// Navigate through array
 			if err := pe.navigateToArrayElement(&current, segment.Key, *segment.ArrayIndex, segment.IsNegative); err != nil {
 				return err
@@ -409,6 +491,40 @@ func (pe *PathEvaluator) setArrayValue(target map[string]any, path string, array
 	}
 
 	return nil
+}
+
+// splitPathSegments splits a JSONPath by dots, but ignores dots inside bracket expressions [...]
+func splitPathSegments(path string) []string {
+	var segments []string
+	var current strings.Builder
+	depth := 0
+
+	for _, ch := range path {
+		switch ch {
+		case '[':
+			depth++
+			current.WriteRune(ch)
+		case ']':
+			depth--
+			current.WriteRune(ch)
+		case '.':
+			if depth == 0 {
+				if current.Len() > 0 {
+					segments = append(segments, current.String())
+					current.Reset()
+				}
+			} else {
+				current.WriteRune(ch)
+			}
+		default:
+			current.WriteRune(ch)
+		}
+	}
+	if current.Len() > 0 {
+		segments = append(segments, current.String())
+	}
+
+	return segments
 }
 
 // parseJSONPath parses a JSONPath expression into segments with array index support
@@ -432,18 +548,32 @@ func (pe *PathEvaluator) parseJSONPath(path string) ([]PathSegment, error) {
 
 	// Regular expressions for parsing
 	arrayIndexPattern := regexp.MustCompile(`^(.+)\[(-?\d+)\]$`)
+	filterPattern := regexp.MustCompile(`^(.+)\[\?\(@\.(\w+)\s*==\s*'([^']+)'\)\]$`)
 
-	// Split by dots and parse each segment
+	// Split by dots, but not dots inside bracket expressions [...]
 	segments := []PathSegment{}
-	rawSegments := strings.SplitSeq(path, ".")
+	rawSegmentsList := splitPathSegments(path)
 
-	for rawSegment := range rawSegments {
+	for _, rawSegment := range rawSegmentsList {
 		if rawSegment == "" {
 			continue
 		}
 
-		// Check if this segment has an array index
-		if matches := arrayIndexPattern.FindStringSubmatch(rawSegment); matches != nil {
+		// Check if this segment has a filter expression
+		if matches := filterPattern.FindStringSubmatch(rawSegment); matches != nil {
+			key := matches[1]
+			filterKey := matches[2]
+			filterValue := matches[3]
+
+			segments = append(segments, PathSegment{
+				Key: key,
+				Filter: &FilterExpression{
+					Key:   filterKey,
+					Value: filterValue,
+				},
+			})
+		} else if matches := arrayIndexPattern.FindStringSubmatch(rawSegment); matches != nil {
+			// Check if this segment has an array index
 			key := matches[1]
 			indexStr := matches[2]
 
