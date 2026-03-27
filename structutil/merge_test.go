@@ -336,7 +336,7 @@ func TestMergeStruct_NilInputs(t *testing.T) {
 func TestIsZeroValue(t *testing.T) {
 	tests := []struct {
 		name     string
-		value    interface{}
+		value    any
 		expected bool
 	}{
 		{"zero string", "", true},

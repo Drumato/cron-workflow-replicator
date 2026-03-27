@@ -56,13 +56,13 @@ func (c *CleanCronWorkflow) ToYAML() ([]byte, error) {
 // ToYAMLWithIndent はCleanCronWorkflowを指定されたインデントでYAMLバイト列に変換します
 func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 	// カスタムマップを作成して正しいキー名にする
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 
 	data["apiVersion"] = c.APIVersion
 	data["kind"] = c.Kind
 
 	if c.Metadata != nil {
-		metadata := make(map[string]interface{})
+		metadata := make(map[string]any)
 
 		if c.Metadata.Name != "" {
 			metadata["name"] = c.Metadata.Name
@@ -88,7 +88,7 @@ func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal spec: %w", err)
 	}
 
-	var specMap map[string]interface{}
+	var specMap map[string]any
 	if err := yaml.Unmarshal(specData, &specMap); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal spec: %w", err)
 	}
@@ -97,7 +97,7 @@ func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 	cleanSpecInterface := removeEmptyFields(specMap)
 
 	// 型アサーションでmap[string]interface{}に戻す
-	if cleanSpecMap, ok := cleanSpecInterface.(map[string]interface{}); ok && len(cleanSpecMap) > 0 {
+	if cleanSpecMap, ok := cleanSpecInterface.(map[string]any); ok && len(cleanSpecMap) > 0 {
 		data["spec"] = cleanSpecMap
 	}
 
@@ -118,10 +118,10 @@ func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 }
 
 // removeEmptyFields は空のフィールドを再帰的に除外します
-func removeEmptyFields(data interface{}) interface{} {
+func removeEmptyFields(data any) any {
 	switch v := data.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{})
+	case map[string]any:
+		result := make(map[string]any)
 		for key, value := range v {
 			cleaned := removeEmptyFields(value)
 			if !isEmpty(cleaned) {
@@ -129,8 +129,8 @@ func removeEmptyFields(data interface{}) interface{} {
 			}
 		}
 		return result
-	case []interface{}:
-		var result []interface{}
+	case []any:
+		var result []any
 		for _, item := range v {
 			cleaned := removeEmptyFields(item)
 			if !isEmpty(cleaned) {
@@ -144,7 +144,7 @@ func removeEmptyFields(data interface{}) interface{} {
 }
 
 // isEmpty は値が空かどうかを判定します
-func isEmpty(value interface{}) bool {
+func isEmpty(value any) bool {
 	if value == nil {
 		return true
 	}
@@ -163,7 +163,7 @@ func isEmpty(value interface{}) bool {
 		return v.Float() == 0
 	case reflect.Bool:
 		return !v.Bool()
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		return v.IsNil()
 	default:
 		return false

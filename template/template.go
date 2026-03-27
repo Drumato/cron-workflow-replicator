@@ -18,7 +18,7 @@ type TemplateRenderer struct {
 
 // TemplateData contains all variables available in templates
 type TemplateData struct {
-	Var map[string]interface{} // Variables loaded from the values file
+	Var map[string]any // Variables loaded from the values file
 }
 
 // New creates a new TemplateRenderer instance
@@ -85,13 +85,13 @@ func (tr *TemplateRenderer) RenderConfigFromReader(configReader io.Reader, value
 }
 
 // loadVariables loads variables from a YAML file into a map[string]interface{}
-func (tr *TemplateRenderer) loadVariables(valuesPath string) (map[string]interface{}, error) {
+func (tr *TemplateRenderer) loadVariables(valuesPath string) (map[string]any, error) {
 	valuesContent, err := os.ReadFile(valuesPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read values file: %w", err)
 	}
 
-	var variables map[string]interface{}
+	var variables map[string]any
 	if err := yaml.Unmarshal(valuesContent, &variables); err != nil {
 		return nil, fmt.Errorf("failed to parse values file as YAML: %w", err)
 	}

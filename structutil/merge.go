@@ -47,7 +47,7 @@ func mergeFields(dst, src reflect.Value) {
 			} else if dstField.Kind() == reflect.Slice && srcField.Kind() == reflect.Slice {
 				// For slice fields, use special slice merging logic
 				mergeFields(dstField, srcField)
-			} else if dstField.Kind() == reflect.Ptr && srcField.Kind() == reflect.Ptr {
+			} else if dstField.Kind() == reflect.Pointer && srcField.Kind() == reflect.Pointer {
 				// For pointer fields, use special pointer merging logic
 				mergeFields(dstField, srcField)
 			} else {
@@ -56,7 +56,7 @@ func mergeFields(dst, src reflect.Value) {
 			}
 		}
 
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if src.IsNil() {
 			return
 		}
@@ -111,7 +111,7 @@ func isZeroValue(v reflect.Value) bool {
 		return v.String() == ""
 	case reflect.Slice, reflect.Map:
 		return v.IsNil() || v.Len() == 0
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Ptr:
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Pointer:
 		return v.IsNil()
 	case reflect.Array:
 		for i := 0; i < v.Len(); i++ {

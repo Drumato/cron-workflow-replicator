@@ -61,7 +61,7 @@ func (pe *PathEvaluator) ApplyPaths(target *argoworkflowsv1alpha1.CronWorkflow, 
 }
 
 // structToMap converts a struct to map[string]interface{} via JSON marshaling
-func (pe *PathEvaluator) structToMap(obj interface{}) (map[string]interface{}, error) {
+func (pe *PathEvaluator) structToMap(obj any) (map[string]any, error) {
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(obj)
 	if err != nil {
@@ -69,7 +69,7 @@ func (pe *PathEvaluator) structToMap(obj interface{}) (map[string]interface{}, e
 	}
 
 	// Unmarshal to map
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(jsonBytes, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal to map: %w", err)
 	}
@@ -78,7 +78,7 @@ func (pe *PathEvaluator) structToMap(obj interface{}) (map[string]interface{}, e
 }
 
 // mapToStruct converts map[string]interface{} back to a struct via JSON marshaling
-func (pe *PathEvaluator) mapToStruct(m map[string]interface{}, target interface{}) error {
+func (pe *PathEvaluator) mapToStruct(m map[string]any, target any) error {
 	// Marshal to JSON
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
@@ -94,7 +94,7 @@ func (pe *PathEvaluator) mapToStruct(m map[string]interface{}, target interface{
 }
 
 // convertValue attempts to convert a string value to the appropriate type
-func (pe *PathEvaluator) convertValue(value string) interface{} {
+func (pe *PathEvaluator) convertValue(value string) any {
 	// Try null conversion first
 	if value == "null" {
 		return nil
@@ -120,7 +120,7 @@ func (pe *PathEvaluator) convertValue(value string) interface{} {
 
 	// Try JSON array conversion
 	if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
-		var arrayVal []interface{}
+		var arrayVal []any
 		if err := json.Unmarshal([]byte(value), &arrayVal); err == nil {
 			return arrayVal
 		}
@@ -128,7 +128,7 @@ func (pe *PathEvaluator) convertValue(value string) interface{} {
 
 	// Try JSON object conversion
 	if strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}") {
-		var objVal map[string]interface{}
+		var objVal map[string]any
 		if err := json.Unmarshal([]byte(value), &objVal); err == nil {
 			return objVal
 		}
@@ -139,12 +139,12 @@ func (pe *PathEvaluator) convertValue(value string) interface{} {
 }
 
 // setValueAtPath sets a value at the specified JSONPath in the target map
-func (pe *PathEvaluator) setValueAtPath(target map[string]interface{}, path string, value string) error {
+func (pe *PathEvaluator) setValueAtPath(target map[string]any, path string, value string) error {
 	// Convert value first to check if it's an array
 	convertedValue := pe.convertValue(value)
 
 	// Check if this is an array value and the path doesn't specify an array element
-	if arrayVal, isArray := convertedValue.([]interface{}); isArray {
+	if arrayVal, isArray := convertedValue.([]any); isArray {
 		if !pe.isArrayElementPath(path) {
 			// This is a whole array assignment
 			return pe.setArrayValue(target, path, arrayVal)
@@ -169,7 +169,7 @@ func (pe *PathEvaluator) setValueAtPath(target map[string]interface{}, path stri
 }
 
 // createPathAndSetValue creates the path structure and sets the value
-func (pe *PathEvaluator) createPathAndSetValue(target map[string]interface{}, path string, value string) error {
+func (pe *PathEvaluator) createPathAndSetValue(target map[string]any, path string, value string) error {
 	// Parse the JSONPath to understand the structure
 	segments, err := pe.parseJSONPath(path)
 	if err != nil {
@@ -198,11 +198,11 @@ func (pe *PathEvaluator) createPathAndSetValue(target map[string]interface{}, pa
 			} else {
 				// Create map if it doesn't exist
 				if _, exists := current[segment.Key]; !exists {
-					current[segment.Key] = make(map[string]interface{})
+					current[segment.Key] = make(map[string]any)
 				}
 
 				// Move to next level
-				if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
+				if nextMap, ok := current[segment.Key].(map[string]any); ok {
 					current = nextMap
 				} else {
 					return fmt.Errorf("path segment %s is not a map, cannot create nested structure", segment.Key)
@@ -215,17 +215,17 @@ func (pe *PathEvaluator) createPathAndSetValue(target map[string]interface{}, pa
 }
 
 // setValueAtArrayIndex sets a value at a specific array index
-func (pe *PathEvaluator) setValueAtArrayIndex(parent map[string]interface{}, arrayKey string, index int, isNegative bool, value string) error {
+func (pe *PathEvaluator) setValueAtArrayIndex(parent map[string]any, arrayKey string, index int, isNegative bool, value string) error {
 	// Get or create the array
-	var arr []interface{}
+	var arr []any
 	if existing, exists := parent[arrayKey]; exists {
-		if existingArr, ok := existing.([]interface{}); ok {
+		if existingArr, ok := existing.([]any); ok {
 			arr = existingArr
 		} else {
 			return fmt.Errorf("key %s exists but is not an array", arrayKey)
 		}
 	} else {
-		arr = make([]interface{}, 0)
+		arr = make([]any, 0)
 	}
 
 	// Calculate actual index
@@ -256,18 +256,18 @@ func (pe *PathEvaluator) setValueAtArrayIndex(parent map[string]interface{}, arr
 }
 
 // navigateToArrayElement navigates to an array element and updates the current pointer
-func (pe *PathEvaluator) navigateToArrayElement(current *map[string]interface{}, arrayKey string, index int, isNegative bool) error {
+func (pe *PathEvaluator) navigateToArrayElement(current *map[string]any, arrayKey string, index int, isNegative bool) error {
 	// Get or create the array
-	var arr []interface{}
+	var arr []any
 	if arrayVal, exists := (*current)[arrayKey]; exists {
-		if existingArr, ok := arrayVal.([]interface{}); ok {
+		if existingArr, ok := arrayVal.([]any); ok {
 			arr = existingArr
 		} else {
 			return fmt.Errorf("key %s exists but is not an array", arrayKey)
 		}
 	} else {
 		// Create array if it doesn't exist
-		arr = make([]interface{}, 0)
+		arr = make([]any, 0)
 		(*current)[arrayKey] = arr
 	}
 
@@ -286,7 +286,7 @@ func (pe *PathEvaluator) navigateToArrayElement(current *map[string]interface{},
 	// Extend array if necessary (but only for positive indices)
 	if actualIndex >= len(arr) && !isNegative {
 		for len(arr) <= actualIndex {
-			arr = append(arr, make(map[string]interface{}))
+			arr = append(arr, make(map[string]any))
 		}
 		(*current)[arrayKey] = arr
 	}
@@ -298,11 +298,11 @@ func (pe *PathEvaluator) navigateToArrayElement(current *map[string]interface{},
 
 	// Navigate to the array element
 	element := arr[actualIndex]
-	if elementMap, ok := element.(map[string]interface{}); ok {
+	if elementMap, ok := element.(map[string]any); ok {
 		*current = elementMap
 	} else {
 		// Create a map if the element is not already a map
-		newMap := make(map[string]interface{})
+		newMap := make(map[string]any)
 		arr[actualIndex] = newMap
 		(*current)[arrayKey] = arr
 		*current = newMap
@@ -312,7 +312,7 @@ func (pe *PathEvaluator) navigateToArrayElement(current *map[string]interface{},
 }
 
 // replaceValueAtPath replaces an existing value at the JSONPath
-func (pe *PathEvaluator) replaceValueAtPath(target map[string]interface{}, path string, value string, existingValue interface{}) error {
+func (pe *PathEvaluator) replaceValueAtPath(target map[string]any, path string, value string, existingValue any) error {
 	// Parse the JSONPath to understand the structure
 	segments, err := pe.parseJSONPath(path)
 	if err != nil {
@@ -341,7 +341,7 @@ func (pe *PathEvaluator) replaceValueAtPath(target map[string]interface{}, path 
 				return err
 			}
 		} else {
-			if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
+			if nextMap, ok := current[segment.Key].(map[string]any); ok {
 				current = nextMap
 			} else {
 				return fmt.Errorf("path segment %s is not a map, cannot navigate", segment.Key)
@@ -371,7 +371,7 @@ func (pe *PathEvaluator) isArrayElementPath(path string) bool {
 }
 
 // setArrayValue sets an entire array at the specified JSONPath
-func (pe *PathEvaluator) setArrayValue(target map[string]interface{}, path string, arrayVal []interface{}) error {
+func (pe *PathEvaluator) setArrayValue(target map[string]any, path string, arrayVal []any) error {
 	// Parse the JSONPath to understand the structure
 	segments, err := pe.parseJSONPath(path)
 	if err != nil {
@@ -396,11 +396,11 @@ func (pe *PathEvaluator) setArrayValue(target map[string]interface{}, path strin
 		} else {
 			// Create map if it doesn't exist
 			if _, exists := current[segment.Key]; !exists {
-				current[segment.Key] = make(map[string]interface{})
+				current[segment.Key] = make(map[string]any)
 			}
 
 			// Move to next level
-			if nextMap, ok := current[segment.Key].(map[string]interface{}); ok {
+			if nextMap, ok := current[segment.Key].(map[string]any); ok {
 				current = nextMap
 			} else {
 				return fmt.Errorf("path segment %s is not a map, cannot navigate", segment.Key)
@@ -435,9 +435,9 @@ func (pe *PathEvaluator) parseJSONPath(path string) ([]PathSegment, error) {
 
 	// Split by dots and parse each segment
 	segments := []PathSegment{}
-	rawSegments := strings.Split(path, ".")
+	rawSegments := strings.SplitSeq(path, ".")
 
-	for _, rawSegment := range rawSegments {
+	for rawSegment := range rawSegments {
 		if rawSegment == "" {
 			continue
 		}

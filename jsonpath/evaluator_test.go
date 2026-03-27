@@ -349,7 +349,7 @@ func TestPathEvaluator_convertValue(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected interface{}
+		expected any
 	}{
 		{
 			name:     "null value",
@@ -389,12 +389,12 @@ func TestPathEvaluator_convertValue(t *testing.T) {
 		{
 			name:     "JSON array",
 			input:    `[1, 2, "test"]`,
-			expected: []interface{}{float64(1), float64(2), "test"},
+			expected: []any{float64(1), float64(2), "test"},
 		},
 		{
 			name:     "JSON object",
 			input:    `{"key": "value", "number": 42}`,
-			expected: map[string]interface{}{"key": "value", "number": float64(42)},
+			expected: map[string]any{"key": "value", "number": float64(42)},
 		},
 		{
 			name:     "string value",

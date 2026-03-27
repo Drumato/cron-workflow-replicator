@@ -864,7 +864,7 @@ func TestRunner_MemoryUsage_InMemoryGeneration(t *testing.T) {
 	}
 
 	// Generate many units to test memory usage
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		unit := config.Unit{
 			OutputDirectory: fmt.Sprintf("output-%d", i),
 			APIVersion:      config.APIVersionV1Alpha1,
@@ -872,7 +872,7 @@ func TestRunner_MemoryUsage_InMemoryGeneration(t *testing.T) {
 		}
 
 		// Generate many values per unit
-		for j := 0; j < 10; j++ {
+		for j := range 10 {
 			unit.Values = append(unit.Values, config.Value{
 				Filename: fmt.Sprintf("workflow-%d-%d", i, j),
 			})
@@ -962,7 +962,7 @@ func TestRunner_ConcurrentInMemoryAccess(t *testing.T) {
 	errors := make(chan error, numGoroutines)
 	filesystems := make([]*filesystem.InMemoryFileSystem, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(goroutineID int) {
 			// Each goroutine gets its own filesystem to avoid race conditions
 			fs := filesystem.NewInMemoryFileSystem()
@@ -991,13 +991,13 @@ func TestRunner_ConcurrentInMemoryAccess(t *testing.T) {
 	}
 
 	// Collect results
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		err := <-errors
 		assert.NoError(t, err, "Concurrent access should not cause errors")
 	}
 
 	// Verify all files were created in their respective filesystems
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		if filesystems[i] != nil {
 			expectedFile := fmt.Sprintf("/config/output/concurrent-workflow-%d.yaml", i)
 			assert.True(t, filesystems[i].Exists(expectedFile), "File %s should exist in filesystem %d", expectedFile, i)
