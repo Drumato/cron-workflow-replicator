@@ -4,11 +4,75 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strings"
 
 	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 )
+
+// pointerStructFieldNames は CronWorkflowSpec 配下で「ポインタ struct 型」として
+// 定義されているフィールドの JSON キー名集合。
+//
+// Argo 公式型 (argoworkflowsv1alpha1.CronWorkflowSpec) を reflect で walk して
+// 自動収集する。これらのフィールドは k8syaml.Marshal の際に omitempty が効くため、
+// YAML に出現する時点で必ず non-nil ポインタとなっている。すなわち「ユーザーが
+// 明示的に存在させた」フィールドであり、中身が空構造体 ({}) であっても保持すべき
+// ディスクリミネータ的フィールドとみなす (ArchiveStrategy.Tar など)。
+var pointerStructFieldNames = collectPointerStructFieldNames(
+	reflect.TypeOf(argoworkflowsv1alpha1.CronWorkflowSpec{}),
+)
+
+// collectPointerStructFieldNames は root から再帰的に型を辿り、
+// ポインタ struct 型フィールドの JSON 名を収集します。
+func collectPointerStructFieldNames(root reflect.Type) map[string]struct{} {
+	names := make(map[string]struct{})
+	visited := make(map[reflect.Type]bool)
+
+	var walk func(t reflect.Type)
+	walk = func(t reflect.Type) {
+		for t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		switch t.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map:
+			walk(t.Elem())
+			return
+		case reflect.Struct:
+			// fall through
+		default:
+			return
+		}
+		if visited[t] {
+			return
+		}
+		visited[t] = true
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			ft := f.Type
+			if ft.Kind() == reflect.Pointer && ft.Elem().Kind() == reflect.Struct {
+				if name := jsonFieldName(f); name != "" {
+					names[name] = struct{}{}
+				}
+			}
+			walk(ft)
+		}
+	}
+	walk(root)
+	return names
+}
+
+// jsonFieldName は struct field の json タグからフィールド名を取り出します。
+func jsonFieldName(f reflect.StructField) string {
+	tag := f.Tag.Get("json")
+	if tag == "" || tag == "-" {
+		return ""
+	}
+	if i := strings.Index(tag, ","); i >= 0 {
+		return tag[:i]
+	}
+	return tag
+}
 
 // CleanCronWorkflow - YAML出力用の不要フィールドを除いたCronWorkflow表現
 type CleanCronWorkflow struct {
@@ -117,13 +181,34 @@ func (c *CleanCronWorkflow) ToYAMLWithIndent(indent int) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// removeEmptyFields は空のフィールドを再帰的に除外します
+// removeEmptyFields は空のフィールドを再帰的に除外します。
+// ただし pointerStructFieldNames に含まれるキー (Argo 型でポインタ struct
+// として定義されているフィールド) は、空マップであってもユーザーが明示的に
+// 設定したものとして保持します (例: archive.tar = {})。
 func removeEmptyFields(data any) any {
+	return removeEmptyFieldsCtx(data, "")
+}
+
+func removeEmptyFieldsCtx(data any, currentKey string) any {
 	switch v := data.(type) {
 	case map[string]any:
+		// 既に空マップで、かつそのキーが保持対象なら、空マップのまま返す。
+		// 呼び出し側で「保持対象キー」として再度判定するため、ここでの返却値は
+		// nil ではなく空マップである必要がある。
+		if len(v) == 0 {
+			return map[string]any{}
+		}
 		result := make(map[string]any)
 		for key, value := range v {
-			cleaned := removeEmptyFields(value)
+			cleaned := removeEmptyFieldsCtx(value, key)
+			if _, keep := pointerStructFieldNames[key]; keep {
+				// ポインタ struct 由来のフィールドは空でも保持
+				if cleaned == nil {
+					cleaned = map[string]any{}
+				}
+				result[key] = cleaned
+				continue
+			}
 			if !isEmpty(cleaned) {
 				result[key] = cleaned
 			}
@@ -132,7 +217,7 @@ func removeEmptyFields(data any) any {
 	case []any:
 		var result []any
 		for _, item := range v {
-			cleaned := removeEmptyFields(item)
+			cleaned := removeEmptyFieldsCtx(item, currentKey)
 			if !isEmpty(cleaned) {
 				result = append(result, cleaned)
 			}

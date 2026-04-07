@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: archive-base
+  namespace: default
+spec:
+  schedule: "0 0 * * *"
+  timezone: "UTC"
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        container:
+          image: alpine:latest
+          command: ["sh", "-c"]
+          args: ["echo hello > /tmp/out.txt"]
+        outputs:
+          artifacts:
+            - name: out
+              path: /tmp/out.txt
+              archive:
+                tar: {}

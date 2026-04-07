@@ -9,6 +9,7 @@ import (
 	"github.com/drumato/cron-workflow-replicator/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kyaml "sigs.k8s.io/yaml"
 )
@@ -551,4 +552,126 @@ func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
 
 	// Clean YAML should be significantly shorter
 	assert.Less(t, len(cleanStr), len(originalStr), "Clean YAML should be shorter than original")
+}
+
+// TestYAMLGeneration_ArchiveStrategyPreserved は base manifest に
+// archive: { tar: {} } / { none: {} } / { zip: {} } のような
+// 「空構造体ディスクリミネータ」が含まれている場合に、
+// CleanCronWorkflow.ToYAML() の出力にも保持されることを検証します。
+// (回帰テスト: 以前は removeEmptyFields が空マップを一律削除していたため
+//  archive 配下のフィールドが欠落していた)
+func TestYAMLGeneration_ArchiveStrategyPreserved(t *testing.T) {
+	makeCW := func(archive *argoworkflowsv1alpha1.ArchiveStrategy) *argoworkflowsv1alpha1.CronWorkflow {
+		return &argoworkflowsv1alpha1.CronWorkflow{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "argoproj.io/v1alpha1",
+				Kind:       "CronWorkflow",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "archive-test",
+				Namespace: "default",
+			},
+			Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+				Schedule: "0 0 * * *",
+				WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
+					Entrypoint: "main",
+					Templates: []argoworkflowsv1alpha1.Template{
+						{
+							Name: "main",
+							Container: &corev1.Container{
+								Image: "alpine:latest",
+							},
+							Outputs: argoworkflowsv1alpha1.Outputs{
+								Artifacts: argoworkflowsv1alpha1.Artifacts{
+									{
+										Name: "out",
+										Path: "/tmp/out.txt",
+										Archive: archive,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		archive   *argoworkflowsv1alpha1.ArchiveStrategy
+		assertPtr func(t *testing.T, a *argoworkflowsv1alpha1.ArchiveStrategy)
+	}{
+		{
+			name:    "tar empty struct preserved",
+			archive: &argoworkflowsv1alpha1.ArchiveStrategy{Tar: &argoworkflowsv1alpha1.TarStrategy{}},
+			assertPtr: func(t *testing.T, a *argoworkflowsv1alpha1.ArchiveStrategy) {
+				require.NotNil(t, a)
+				assert.NotNil(t, a.Tar, "Tar should be preserved as non-nil after round-trip")
+			},
+		},
+		{
+			name:    "none empty struct preserved",
+			archive: &argoworkflowsv1alpha1.ArchiveStrategy{None: &argoworkflowsv1alpha1.NoneStrategy{}},
+			assertPtr: func(t *testing.T, a *argoworkflowsv1alpha1.ArchiveStrategy) {
+				require.NotNil(t, a)
+				assert.NotNil(t, a.None, "None should be preserved as non-nil after round-trip")
+			},
+		},
+		{
+			name:    "zip empty struct preserved",
+			archive: &argoworkflowsv1alpha1.ArchiveStrategy{Zip: &argoworkflowsv1alpha1.ZipStrategy{}},
+			assertPtr: func(t *testing.T, a *argoworkflowsv1alpha1.ArchiveStrategy) {
+				require.NotNil(t, a)
+				assert.NotNil(t, a.Zip, "Zip should be preserved as non-nil after round-trip")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cw := makeCW(tt.archive)
+			cleanCW := types.NewCleanCronWorkflow(cw)
+			yamlBytes, err := cleanCW.ToYAML()
+			require.NoError(t, err, "ToYAML should not error")
+
+			yamlStr := string(yamlBytes)
+			assert.Contains(t, yamlStr, "archive:", "archive: must appear in clean output")
+
+			// Round-trip して ArchiveStrategy ポインタが non-nil で復元されることを確認
+			var parsed argoworkflowsv1alpha1.CronWorkflow
+			require.NoError(t, kyaml.Unmarshal(yamlBytes, &parsed), "round-trip parse")
+			require.Len(t, parsed.Spec.WorkflowSpec.Templates, 1)
+			require.Len(t, parsed.Spec.WorkflowSpec.Templates[0].Outputs.Artifacts, 1)
+			tt.assertPtr(t, parsed.Spec.WorkflowSpec.Templates[0].Outputs.Artifacts[0].Archive)
+		})
+	}
+}
+
+// TestYAMLGeneration_ArchiveAbsentNotEmitted は archive を一切指定しない場合に
+// 出力に "archive:" が出現しないことを確認する非劣化テスト。
+func TestYAMLGeneration_ArchiveAbsentNotEmitted(t *testing.T) {
+	cw := &argoworkflowsv1alpha1.CronWorkflow{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "argoproj.io/v1alpha1",
+			Kind:       "CronWorkflow",
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "noarchive", Namespace: "default"},
+		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
+			Schedule: "0 0 * * *",
+			WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
+				Entrypoint: "main",
+				Templates: []argoworkflowsv1alpha1.Template{
+					{
+						Name:      "main",
+						Container: &corev1.Container{Image: "alpine:latest"},
+					},
+				},
+			},
+		},
+	}
+	cleanCW := types.NewCleanCronWorkflow(cw)
+	yamlBytes, err := cleanCW.ToYAML()
+	require.NoError(t, err)
+	assert.NotContains(t, string(yamlBytes), "archive:")
 }

@@ -1,0 +1,9 @@
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    baseManifestPath: "./base-manifest.yaml"
+    values:
+      - filename: "tar-archive"
+        paths:
+          - path: "$.metadata.name"
+            value: "tar-archive-pipeline"

@@ -218,3 +218,17 @@ func TestCleanCronWorkflow_ToYAML_CompareIndentSizes(t *testing.T) {
 	assert.Equal(t, 2, spaces2)
 	assert.Equal(t, 4, spaces4)
 }
+
+// TestPointerStructFieldNames_ContainsArchiveStrategies は、
+// Argo 公式型から自動収集される pointerStructFieldNames に
+// ArchiveStrategy の各ディスクリミネータ (tar/none/zip) が含まれていることを
+// 確認します。Argo Workflows ライブラリの更新で型構造が変わって収集ロジックが
+// 壊れた場合に検知するためのテスト。
+func TestPointerStructFieldNames_ContainsArchiveStrategies(t *testing.T) {
+	// 「空構造体ポインタでも保持されるべき」代表的なフィールド
+	expected := []string{"tar", "none", "zip"}
+	for _, name := range expected {
+		_, ok := pointerStructFieldNames[name]
+		assert.True(t, ok, "pointerStructFieldNames should contain %q (auto-collected from argo CronWorkflowSpec)", name)
+	}
+}
