@@ -1111,3 +1111,86 @@ spec:
 	assert.Len(t, cw.Spec.WorkflowSpec.Arguments.Parameters, 1, "Should have base parameters")
 	assert.Equal(t, "base-param", cw.Spec.WorkflowSpec.Arguments.Parameters[0].Name, "Base parameter name should be preserved")
 }
+
+// TestRunner_processUnit_BaseCronWorkflowIsNotSharedAcrossValues verifies that a path
+// applied for one value never leaks into the outputs generated for the following values.
+// The base CronWorkflow has to be deep copied before paths are applied: a plain struct
+// copy keeps nested maps and slices (templates, initContainers, env, volumes, ...) shared
+// with the base document, so a conditional patch mutates the base in place and every
+// subsequent value inherits it.
+func TestRunner_processUnit_BaseCronWorkflowIsNotSharedAcrossValues(t *testing.T) {
+	baseManifest := `apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: base-cronworkflow
+  namespace: default
+spec:
+  schedule: "0 0 * * *"
+  workflowSpec:
+    entrypoint: task
+    templates:
+    - name: task
+      container:
+        image: alpine:latest
+        command: ["echo"]
+        args: ["base workflow"]
+`
+
+	tempDir := t.TempDir()
+	baseManifestPath := "base-manifest.yaml"
+	err := os.WriteFile(filepath.Join(tempDir, baseManifestPath), []byte(baseManifest), 0o644)
+	require.NoError(t, err)
+
+	unit := config.Unit{
+		BaseManifestPath: &baseManifestPath,
+		OutputDirectory:  "output",
+		APIVersion:       config.APIVersionV1Alpha1,
+		Values: []config.Value{
+			{
+				Filename: "before",
+				Paths: []config.PathValue{
+					{Path: "$.metadata.name", Value: "before"},
+				},
+			},
+			{
+				// Only this value patches initContainers.
+				Filename: "patched",
+				Paths: []config.PathValue{
+					{Path: "$.metadata.name", Value: "patched"},
+					{
+						Path:  "$.spec.workflowSpec.templates[?(@.name == 'task')].initContainers",
+						Value: `[{"name": "init", "image": "alpine:latest"}]`,
+					},
+				},
+			},
+			{
+				Filename: "after",
+				Paths: []config.PathValue{
+					{Path: "$.metadata.name", Value: "after"},
+				},
+			},
+		},
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	runner := New(logger)
+
+	err = runner.processUnit(context.Background(), unit, tempDir)
+	require.NoError(t, err)
+
+	initContainersOf := func(t *testing.T, filename string) []argoworkflowsv1alpha1.UserContainer {
+		t.Helper()
+
+		content, err := os.ReadFile(filepath.Join(tempDir, unit.OutputDirectory, filename+".yaml"))
+		require.NoError(t, err)
+
+		cw := validateCronWorkflowContent(t, content)
+		require.Len(t, cw.Spec.WorkflowSpec.Templates, 1, "%s should keep the single base template", filename)
+
+		return cw.Spec.WorkflowSpec.Templates[0].InitContainers
+	}
+
+	assert.Empty(t, initContainersOf(t, "before"), "the value processed before the patch must not have initContainers")
+	assert.Len(t, initContainersOf(t, "patched"), 1, "the patched value must have the initContainers it asked for")
+	assert.Empty(t, initContainersOf(t, "after"), "the patch applied to a previous value must not leak into the following values")
+}

@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: example-cron-workflow
+  namespace: default
+spec:
+  schedule: "0 0 * * *"
+  workflowSpec:
+    entrypoint: task
+    templates:
+    - name: task
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo hello"]
