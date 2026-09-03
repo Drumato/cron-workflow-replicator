@@ -1,0 +1,29 @@
+# initContainers をパッチするのは task-b だけ。
+# base manifest は全 value で共有されるため、value ごとの paths を適用する前に
+# deep copy する必要がある。そうしないと下記のパッチが base document を破壊的に
+# 更新し、task-b の後に処理される task-c にも initContainers が混入して、
+# 生成結果が values の並び順に依存してしまう。
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    baseManifestPath: "./base-manifest.yaml"
+    values:
+      # initContainers なし
+      - filename: "task-a"
+        paths:
+          - path: "$.metadata.name"
+            value: "task-a"
+
+      # このワークフローにだけ initContainers を付与する
+      - filename: "task-b"
+        paths:
+          - path: "$.metadata.name"
+            value: "task-b"
+          - path: "$.spec.workflowSpec.templates[?(@.name == 'task')].initContainers"
+            value: '[{"name": "init", "image": "alpine:latest"}]'
+
+      # task-b の後に生成されるが initContainers は付かない
+      - filename: "task-c"
+        paths:
+          - path: "$.metadata.name"
+            value: "task-c"

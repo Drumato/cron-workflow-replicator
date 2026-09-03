@@ -119,7 +119,7 @@ func (r *Runner) processUnit(ctx context.Context, unit config.Unit, configDir st
 		}
 
 		// Start with the base CronWorkflow (deep copy to avoid modifying the original)
-		cw := *baseCronWorkflow
+		cw := *baseCronWorkflow.DeepCopy()
 
 		// Apply paths from the value using JSONPath evaluation
 		if err := r.pathEvaluator.ApplyPaths(&cw, value.Paths); err != nil {
