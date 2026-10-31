@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	"gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
 )

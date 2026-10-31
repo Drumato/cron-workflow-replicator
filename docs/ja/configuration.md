@@ -155,8 +155,8 @@ units:
             value: "my-cronworkflow"
           - path: "$.metadata.namespace"
             value: "default"
-          - path: "$.spec.schedule"
-            value: "0 0 * * *"
+          - path: "$.spec.schedules"
+            value: '["0 0 * * *"]'
 ```
 
 ### JSONPath式のルール
@@ -179,8 +179,8 @@ units:
   value: "data-processor"
 
 # specフィールドの設定
-- path: "$.spec.schedule"
-  value: "0 2 * * *"
+- path: "$.spec.schedules"
+  value: '["0 2 * * *"]'
 - path: "$.spec.concurrencyPolicy"
   value: "Forbid"
 
@@ -207,7 +207,8 @@ values:
     metadata:
       name: "my-cronworkflow"
     spec:
-      schedule: "0 0 * * *"
+      schedules:
+        - "0 0 * * *"
 ```
 
 **新しい形式:**
@@ -218,9 +219,20 @@ values:
     paths:
       - path: "$.metadata.name"
         value: "my-cronworkflow"
-      - path: "$.spec.schedule"
-        value: "0 0 * * *"
+      - path: "$.spec.schedules"
+        value: '["0 0 * * *"]'
 ```
+
+### 旧形式の `spec.schedule`
+
+Argo Workflows v4 では単数形の `spec.schedule` が削除され、`spec.schedules` に一本化されました。
+互換性のため、cron-workflow-replicator は引き続き `spec.schedule` を受け付け、出力は常に `spec.schedules` になります。
+
+- base manifest の `spec.schedule` は `spec.schedules` に移されます（すでに含まれていなければ先頭に追加）。
+- value で `$.spec.schedule` を指定すると、`spec.schedules` はその 1 件だけで上書きされます。
+
+どちらの場合も警告ログが出力されます。新しく書くマニフェストや設定では `spec.schedules` を使ってください。
+例は `examples/v1alpha1/legacy-schedule` を参照してください。
 
 ### JSONPathの利点
 

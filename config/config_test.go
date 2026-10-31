@@ -214,12 +214,12 @@ spec:
 				// No base manifest case - should return empty workflow with proper TypeMeta
 				assert.Equal(t, "", result.Name)
 				assert.Equal(t, "", result.Namespace)
-				assert.Equal(t, "", result.Spec.Schedule)
+				assert.Equal(t, "", result.Spec.GetScheduleString())
 			} else {
 				// Base manifest case - should have loaded values
 				assert.Equal(t, tt.expectedName, result.Name)
 				assert.Equal(t, tt.expectedNamespace, result.Namespace)
-				assert.Equal(t, tt.expectedSchedule, result.Spec.Schedule)
+				assert.Equal(t, tt.expectedSchedule, result.Spec.GetScheduleString())
 			}
 		})
 	}

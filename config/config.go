@@ -1,13 +1,15 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kyaml "sigs.k8s.io/yaml"
 )
@@ -123,9 +125,32 @@ func (u *Unit) LoadBaseCronWorkflow(fileReader FileReader, configDir string) (*a
 		return nil, fmt.Errorf("failed to read base manifest file %s: %w", baseManifestPath, err)
 	}
 
+	jsonData, err := kyaml.YAMLToJSON(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal base manifest file %s: %w", baseManifestPath, err)
+	}
+
+	// Rewrite spec.schedule, which the Argo Workflows v4 types no longer have
+	var raw map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(jsonData))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal base manifest file %s: %w", baseManifestPath, err)
+	}
+	migrated, err := NormalizeLegacySchedule(raw, false)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base manifest file %s: %w", baseManifestPath, err)
+	}
+	if migrated {
+		slog.Warn("spec.schedule is deprecated; converted to spec.schedules", "file", baseManifestPath)
+		if jsonData, err = json.Marshal(raw); err != nil {
+			return nil, fmt.Errorf("failed to convert base manifest file %s: %w", baseManifestPath, err)
+		}
+	}
+
 	// Unmarshal the YAML into CronWorkflow
 	var baseCronWorkflow argoworkflowsv1alpha1.CronWorkflow
-	if err := kyaml.Unmarshal(data, &baseCronWorkflow); err != nil {
+	if err := json.Unmarshal(jsonData, &baseCronWorkflow); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal base manifest file %s: %w", baseManifestPath, err)
 	}
 

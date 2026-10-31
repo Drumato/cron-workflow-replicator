@@ -155,8 +155,8 @@ units:
             value: "my-cronworkflow"
           - path: "$.metadata.namespace"
             value: "default"
-          - path: "$.spec.schedule"
-            value: "0 0 * * *"
+          - path: "$.spec.schedules"
+            value: '["0 0 * * *"]'
 ```
 
 ### JSONPath Expression Rules
@@ -179,8 +179,8 @@ units:
   value: "data-processor"
 
 # Setting spec fields
-- path: "$.spec.schedule"
-  value: "0 2 * * *"
+- path: "$.spec.schedules"
+  value: '["0 2 * * *"]'
 - path: "$.spec.concurrencyPolicy"
   value: "Forbid"
 
@@ -207,7 +207,8 @@ values:
     metadata:
       name: "my-cronworkflow"
     spec:
-      schedule: "0 0 * * *"
+      schedules:
+        - "0 0 * * *"
 ```
 
 **New format:**
@@ -218,9 +219,20 @@ values:
     paths:
       - path: "$.metadata.name"
         value: "my-cronworkflow"
-      - path: "$.spec.schedule"
-        value: "0 0 * * *"
+      - path: "$.spec.schedules"
+        value: '["0 0 * * *"]'
 ```
+
+### Legacy `spec.schedule`
+
+Argo Workflows v4 removed the singular `spec.schedule` field in favor of `spec.schedules`.
+For compatibility, cron-workflow-replicator still accepts it and always writes `spec.schedules`:
+
+- `spec.schedule` in a base manifest is moved into `spec.schedules` (prepended unless it is already listed).
+- A value that sets `$.spec.schedule` replaces `spec.schedules` with that single schedule.
+
+A warning is logged in both cases. Prefer `spec.schedules` in new manifests and configs.
+See `examples/v1alpha1/legacy-schedule` for an example.
 
 ### JSONPath Benefits
 

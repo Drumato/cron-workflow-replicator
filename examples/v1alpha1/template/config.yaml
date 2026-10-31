@@ -8,8 +8,8 @@ units:
             value: "{{.Var.jobName}}-cronworkflow"
           - path: "$.metadata.namespace"
             value: "{{.Var.namespace}}"
-          - path: "$.spec.schedule"
-            value: "{{.Var.schedule}}"
+          - path: "$.spec.schedules"
+            value: '["{{.Var.schedule}}"]'
           - path: "$.spec.workflowSpec.entrypoint"
             value: "{{.Var.entrypoint}}"
           - path: "$.spec.workflowSpec.templates[0].name"

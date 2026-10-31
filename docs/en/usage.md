@@ -95,8 +95,8 @@ units:
             value: "backup-service"
           - path: "$.metadata.labels.environment"
             value: "production"
-          - path: "$.spec.schedule"
-            value: "0 2 * * *"  # 2 AM daily
+          - path: "$.spec.schedules"
+            value: '["0 2 * * *"]'  # 2 AM daily
           - path: "$.spec.concurrencyPolicy"
             value: "Forbid"
           - path: "$.spec.successfulJobsHistoryLimit"
@@ -117,8 +117,8 @@ units:
             value: "data-processing-staging"
           - path: "$.metadata.namespace"
             value: "staging"
-          - path: "$.spec.schedule"
-            value: "0 */4 * * *"  # Every 4 hours
+          - path: "$.spec.schedules"
+            value: '["0 */4 * * *"]'  # Every 4 hours
           - path: "$.spec.workflowSpec.arguments.parameters[0].value"
             value: "s3://staging-data-bucket/"
       - filename: "data-processing-production"
@@ -127,8 +127,8 @@ units:
             value: "data-processing-production"
           - path: "$.metadata.namespace"
             value: "production"
-          - path: "$.spec.schedule"
-            value: "0 1 * * *"   # 1 AM daily
+          - path: "$.spec.schedules"
+            value: '["0 1 * * *"]'   # 1 AM daily
           - path: "$.spec.workflowSpec.arguments.parameters[0].value"
             value: "s3://production-data-bucket/"
 ```
@@ -144,8 +144,8 @@ units:
         paths:
           - path: "$.metadata.name"
             value: "weekly-ml-training"
-          - path: "$.spec.schedule"
-            value: "0 0 * * 0"  # Weekly on Sunday
+          - path: "$.spec.schedules"
+            value: '["0 0 * * 0"]'  # Weekly on Sunday
           - path: "$.spec.workflowSpec.templates[0].container.env[0].value"
             value: "production"
           - path: "$.spec.workflowSpec.templates[0].container.resources.requests.memory"

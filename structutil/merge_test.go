@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -280,8 +280,8 @@ func TestMergeStruct_CronWorkflow(t *testing.T) {
 				},
 			},
 			srcSpec: argoworkflowsv1alpha1.CronWorkflowSpec{
-				Schedule: "0 0 * * *",
-				Timezone: "UTC",
+				Schedules: []string{"0 0 * * *"},
+				Timezone:  "UTC",
 			},
 			expected: argoworkflowsv1alpha1.CronWorkflow{
 				TypeMeta: metav1.TypeMeta{
@@ -296,8 +296,8 @@ func TestMergeStruct_CronWorkflow(t *testing.T) {
 					},
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 0 * * *",
-					Timezone: "UTC",
+					Schedules: []string{"0 0 * * *"},
+					Timezone:  "UTC",
 				},
 			},
 		},

@@ -4,7 +4,8 @@ metadata:
   name: example-cron-workflow
   namespace: default
 spec:
-  schedule: "0 0 * * *"
+  schedules:
+    - "0 0 * * *"
   workflowSpec:
     entrypoint: main
     templates:

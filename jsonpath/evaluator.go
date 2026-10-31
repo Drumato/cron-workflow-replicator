@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/oliveagle/jsonpath"
 )
@@ -57,6 +57,15 @@ func (pe *PathEvaluator) ApplyPaths(target *argoworkflowsv1alpha1.CronWorkflow, 
 			return fmt.Errorf("failed to apply path %s: %w", pv.Path, err)
 		}
 		pe.logger.Debug("Applied path", "path", pv.Path, "value", pv.Value)
+	}
+
+	// A value may still set the legacy spec.schedule field; it overrides the schedules
+	migrated, err := config.NormalizeLegacySchedule(targetMap, true)
+	if err != nil {
+		return err
+	}
+	if migrated {
+		pe.logger.Warn("spec.schedule is deprecated; converted to spec.schedules")
 	}
 
 	// Convert back to CronWorkflow

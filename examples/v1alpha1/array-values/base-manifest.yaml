@@ -4,7 +4,8 @@ metadata:
   name: array-values-example
   namespace: default
 spec:
-  schedule: "0 2 * * *"
+  schedules:
+    - "0 2 * * *"
   workflowSpec:
     entrypoint: main-template
     # These will be set/overwritten by pathValues
