@@ -55,7 +55,7 @@ test-examples: build
 
 .PHONY: lint
 lint:
-	$(call GO_TOOL,golangci) golangci-lint run
+	golangci-lint run
 
 .PHONY: vuln
 vuln:
@@ -64,8 +64,3 @@ vuln:
 .PHONY: actionlint
 actionlint:
 	$(call GO_TOOL,actionlint) actionlint
-
-.PHONY: release-check
-release-check:
-	$(call GO_TOOL,goreleaser) goreleaser check
-	$(call GO_TOOL,goreleaser) goreleaser build --snapshot --clean
