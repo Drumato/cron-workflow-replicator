@@ -23,12 +23,12 @@ Goのインストールやローカルでのバイナリビルドなしに、事
 
 ```bash
 # amd64システム用
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 
 # arm64システム用（Apple Siliconなど）
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main-arm \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -40,7 +40,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### 基本例（値なし）
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -50,7 +50,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### 値ありの例
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/withvalue/config.yaml
 ```
@@ -60,7 +60,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### ベースマニフェストを使用した例
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/basemanifest/config.yaml
 ```
@@ -70,7 +70,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Kustomize統合を使用した例
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/kustomize/config.yaml
 ```

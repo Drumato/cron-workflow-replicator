@@ -559,7 +559,8 @@ func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
 // 「空構造体ディスクリミネータ」が含まれている場合に、
 // CleanCronWorkflow.ToYAML() の出力にも保持されることを検証します。
 // (回帰テスト: 以前は removeEmptyFields が空マップを一律削除していたため
-//  archive 配下のフィールドが欠落していた)
+//
+//	archive 配下のフィールドが欠落していた)
 func TestYAMLGeneration_ArchiveStrategyPreserved(t *testing.T) {
 	makeCW := func(archive *argoworkflowsv1alpha1.ArchiveStrategy) *argoworkflowsv1alpha1.CronWorkflow {
 		return &argoworkflowsv1alpha1.CronWorkflow{
@@ -584,8 +585,8 @@ func TestYAMLGeneration_ArchiveStrategyPreserved(t *testing.T) {
 							Outputs: argoworkflowsv1alpha1.Outputs{
 								Artifacts: argoworkflowsv1alpha1.Artifacts{
 									{
-										Name: "out",
-										Path: "/tmp/out.txt",
+										Name:    "out",
+										Path:    "/tmp/out.txt",
 										Archive: archive,
 									},
 								},

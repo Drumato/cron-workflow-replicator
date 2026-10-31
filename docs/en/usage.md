@@ -23,12 +23,12 @@ To run the CLI in a temporary Docker container:
 
 ```bash
 # For amd64 systems
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 
 # For arm64 systems (Apple Silicon, etc.)
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main-arm \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -40,7 +40,7 @@ The `--rm` flag automatically removes the container after execution, and `-v $(p
 ### Basic Example (No Values)
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -50,7 +50,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Example with Values
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/withvalue/config.yaml
 ```
@@ -60,7 +60,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Example with Base Manifest
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/basemanifest/config.yaml
 ```
@@ -70,7 +70,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Example with Kustomize Integration
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/kustomize/config.yaml
 ```

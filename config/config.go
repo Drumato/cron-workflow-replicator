@@ -179,7 +179,7 @@ func (u *Unit) Validate(configDir string) error {
 				return fmt.Errorf("output directory parent %s is not a directory", parentDir)
 			}
 			// Try to create the output directory to verify writability
-			if createErr := os.MkdirAll(outputDir, 0755); createErr != nil {
+			if createErr := os.MkdirAll(outputDir, 0o755); createErr != nil { //nolint:gosec // generated manifests are not secret and are meant to be shared
 				return fmt.Errorf("cannot create output directory %s: %w", outputDir, createErr)
 			}
 		} else {

@@ -9,7 +9,7 @@ A simple tool to replicate Kubernetes CronWorkflows with different values.
 ./cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 
 # Using Docker
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
