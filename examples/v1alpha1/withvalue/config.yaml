@@ -14,8 +14,8 @@ units:
             value: "production"
           - path: "$.metadata.labels.schedule-type"
             value: "daily"
-          - path: "$.spec.schedule"
-            value: "0 2 * * *"  # Daily at 2 AM
+          - path: "$.spec.schedules"
+            value: '["0 2 * * *"]'  # Daily at 2 AM
           - path: "$.spec.workflowSpec.entrypoint"
             value: "backup-workflow"
           - path: "$.spec.workflowSpec.templates[0].name"
@@ -46,8 +46,8 @@ units:
             value: "production"
           - path: "$.metadata.labels.schedule-type"
             value: "weekly"
-          - path: "$.spec.schedule"
-            value: "0 3 * * 0"  # Weekly on Sunday at 3 AM
+          - path: "$.spec.schedules"
+            value: '["0 3 * * 0"]'  # Weekly on Sunday at 3 AM
           - path: "$.spec.workflowSpec.entrypoint"
             value: "cleanup-workflow"
           - path: "$.spec.workflowSpec.templates[0].name"

@@ -14,8 +14,8 @@ units:
             value: "backup"
           - path: "$.metadata.labels.team"
             value: "platform"
-          - path: "$.spec.schedule"
-            value: "0 2 * * *"
+          - path: "$.spec.schedules"
+            value: '["0 2 * * *"]'
           - path: "$.spec.workflowSpec.entrypoint"
             value: "backup"
           - path: "$.spec.workflowSpec.templates[0].name"
@@ -38,8 +38,8 @@ units:
             value: "cleanup"
           - path: "$.metadata.labels.team"
             value: "platform"
-          - path: "$.spec.schedule"
-            value: "0 4 * * *"
+          - path: "$.spec.schedules"
+            value: '["0 4 * * *"]'
           - path: "$.spec.workflowSpec.entrypoint"
             value: "cleanup"
           - path: "$.spec.workflowSpec.templates[0].name"

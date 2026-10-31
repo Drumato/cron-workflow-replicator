@@ -23,12 +23,12 @@ Goのインストールやローカルでのバイナリビルドなしに、事
 
 ```bash
 # amd64システム用
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 
 # arm64システム用（Apple Siliconなど）
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main-arm \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -40,7 +40,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### 基本例（値なし）
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -50,7 +50,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### 値ありの例
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/withvalue/config.yaml
 ```
@@ -60,7 +60,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### ベースマニフェストを使用した例
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/basemanifest/config.yaml
 ```
@@ -70,7 +70,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Kustomize統合を使用した例
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/kustomize/config.yaml
 ```
@@ -95,8 +95,8 @@ units:
             value: "backup-service"
           - path: "$.metadata.labels.environment"
             value: "production"
-          - path: "$.spec.schedule"
-            value: "0 2 * * *"  # 毎日午前2時
+          - path: "$.spec.schedules"
+            value: '["0 2 * * *"]'  # 毎日午前2時
           - path: "$.spec.concurrencyPolicy"
             value: "Forbid"
           - path: "$.spec.successfulJobsHistoryLimit"
@@ -117,8 +117,8 @@ units:
             value: "data-processing-staging"
           - path: "$.metadata.namespace"
             value: "staging"
-          - path: "$.spec.schedule"
-            value: "0 */4 * * *"  # 4時間おき
+          - path: "$.spec.schedules"
+            value: '["0 */4 * * *"]'  # 4時間おき
           - path: "$.spec.workflowSpec.arguments.parameters[0].value"
             value: "s3://staging-data-bucket/"
       - filename: "data-processing-production"
@@ -127,8 +127,8 @@ units:
             value: "data-processing-production"
           - path: "$.metadata.namespace"
             value: "production"
-          - path: "$.spec.schedule"
-            value: "0 1 * * *"   # 毎日午前1時
+          - path: "$.spec.schedules"
+            value: '["0 1 * * *"]'   # 毎日午前1時
           - path: "$.spec.workflowSpec.arguments.parameters[0].value"
             value: "s3://production-data-bucket/"
 ```
@@ -144,8 +144,8 @@ units:
         paths:
           - path: "$.metadata.name"
             value: "weekly-ml-training"
-          - path: "$.spec.schedule"
-            value: "0 0 * * 0"  # 毎週日曜日
+          - path: "$.spec.schedules"
+            value: '["0 0 * * 0"]'  # 毎週日曜日
           - path: "$.spec.workflowSpec.templates[0].container.env[0].value"
             value: "production"
           - path: "$.spec.workflowSpec.templates[0].container.resources.requests.memory"

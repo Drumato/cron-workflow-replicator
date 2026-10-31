@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/drumato/cron-workflow-replicator/filesystem"
 	"github.com/drumato/cron-workflow-replicator/kustomize"
@@ -377,7 +377,7 @@ func assertCronWorkflowFields(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkfl
 		assert.Equal(t, expectedNamespace, cw.Namespace, "Incorrect CronWorkflow namespace")
 	}
 	if expectedSchedule != "" {
-		assert.Equal(t, expectedSchedule, cw.Spec.Schedule, "Incorrect CronWorkflow schedule")
+		assert.Equal(t, expectedSchedule, cw.Spec.GetScheduleString(), "Incorrect CronWorkflow schedule")
 	}
 }
 
@@ -1097,7 +1097,7 @@ spec:
 	assert.Equal(t, "override-annotation-value", cw.Annotations["override-annotation"], "Override annotation should be present")
 
 	// Validate merged spec fields
-	assert.Equal(t, "0 6 * * *", cw.Spec.Schedule, "Schedule should be overridden")
+	assert.Equal(t, "0 6 * * *", cw.Spec.GetScheduleString(), "Schedule should be overridden")
 	assert.Equal(t, true, cw.Spec.Suspend, "Suspend should be overridden")
 	assert.Equal(t, "Asia/Tokyo", cw.Spec.Timezone, "Timezone should be preserved from base")
 	assert.Equal(t, argoworkflowsv1alpha1.ConcurrencyPolicy("Forbid"), cw.Spec.ConcurrencyPolicy, "ConcurrencyPolicy should be preserved from base")

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	"github.com/drumato/cron-workflow-replicator/config"
 	"github.com/drumato/cron-workflow-replicator/types"
 	"github.com/stretchr/testify/assert"
@@ -35,9 +35,9 @@ func TestYAMLGeneration_BasicStructure(t *testing.T) {
 					},
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 0 * * *",
-					Timezone: "Asia/Tokyo",
-					Suspend:  false,
+					Schedules: []string{"0 0 * * *"},
+					Timezone:  "Asia/Tokyo",
+					Suspend:   false,
 					WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
 						Entrypoint: "main",
 					},
@@ -57,7 +57,7 @@ func TestYAMLGeneration_BasicStructure(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 12 * * 1",
+					Schedules: []string{"0 12 * * 1"},
 				},
 			},
 			apiVersion: "",
@@ -86,7 +86,7 @@ func TestYAMLGeneration_BasicStructure(t *testing.T) {
 			assert.Equal(t, tt.cw.Name, parsedCW.Name)
 			assert.Equal(t, tt.cw.Namespace, parsedCW.Namespace)
 			assert.Equal(t, tt.cw.Labels, parsedCW.Labels)
-			assert.Equal(t, tt.cw.Spec.Schedule, parsedCW.Spec.Schedule)
+			assert.Equal(t, tt.cw.Spec.GetScheduleString(), parsedCW.Spec.GetScheduleString())
 		})
 	}
 }
@@ -114,7 +114,7 @@ func TestYAMLGeneration_EmptyValues(t *testing.T) {
 				"name:",
 				"namespace:",
 				"labels:",
-				"schedule:",
+				"schedules:",
 			},
 		},
 		{
@@ -137,7 +137,7 @@ func TestYAMLGeneration_EmptyValues(t *testing.T) {
 				"namespace: default",
 			},
 			expectAbsent: []string{
-				"schedule:",
+				"schedules:",
 				"timezone:",
 			},
 		},
@@ -176,9 +176,11 @@ func TestYAMLGeneration_EmptyValues(t *testing.T) {
 				assert.Contains(t, yamlStr, expected, "Expected '%s' to be present in YAML", expected)
 			}
 
-			// Check expected absent fields
+			// Check expected absent fields in the output this tool actually writes
+			cleanBytes, err := types.NewCleanCronWorkflow(tt.cw).ToYAML()
+			require.NoError(t, err)
 			for _, notExpected := range tt.expectAbsent {
-				assert.NotContains(t, yamlStr, notExpected, "Expected '%s' to be absent from YAML", notExpected)
+				assert.NotContains(t, string(cleanBytes), notExpected, "Expected '%s' to be absent from YAML", notExpected)
 			}
 
 			// Validate generated YAML is parseable
@@ -211,8 +213,8 @@ func TestYAMLGeneration_SpecialCharacters(t *testing.T) {
 					},
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "*/15 * * * *", // Cron with special characters
-					Timezone: "America/New_York",
+					Schedules: []string{"*/15 * * * *"}, // Cron with special characters
+					Timezone:  "America/New_York",
 				},
 			},
 		},
@@ -232,7 +234,7 @@ func TestYAMLGeneration_SpecialCharacters(t *testing.T) {
 					},
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 9 * * 月-金", // Japanese characters in cron
+					Schedules: []string{"0 9 * * 月-金"}, // Japanese characters in cron
 				},
 			},
 		},
@@ -252,7 +254,7 @@ func TestYAMLGeneration_SpecialCharacters(t *testing.T) {
 			assert.Equal(t, tt.cw.Name, parsed.Name)
 			assert.Equal(t, tt.cw.Namespace, parsed.Namespace)
 			assert.Equal(t, tt.cw.Labels, parsed.Labels)
-			assert.Equal(t, tt.cw.Spec.Schedule, parsed.Spec.Schedule)
+			assert.Equal(t, tt.cw.Spec.GetScheduleString(), parsed.Spec.GetScheduleString())
 			assert.Equal(t, tt.cw.Spec.Timezone, parsed.Spec.Timezone)
 		})
 	}
@@ -280,7 +282,7 @@ func TestYAMLGeneration_LargeComplexStructures(t *testing.T) {
 			},
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule:                "0 2 * * *",
+			Schedules:               []string{"0 2 * * *"},
 			Timezone:                "UTC",
 			Suspend:                 false,
 			StartingDeadlineSeconds: func() *int64 { v := int64(300); return &v }(),
@@ -341,7 +343,7 @@ func TestYAMLGeneration_LargeComplexStructures(t *testing.T) {
 	assert.Equal(t, cw.Name, parsed.Name)
 	assert.Equal(t, cw.Labels, parsed.Labels)
 	assert.Equal(t, cw.Annotations, parsed.Annotations)
-	assert.Equal(t, cw.Spec.Schedule, parsed.Spec.Schedule)
+	assert.Equal(t, cw.Spec.GetScheduleString(), parsed.Spec.GetScheduleString())
 	assert.Equal(t, cw.Spec.WorkflowSpec.Entrypoint, parsed.Spec.WorkflowSpec.Entrypoint)
 	assert.Equal(t, len(cw.Spec.WorkflowSpec.Arguments.Parameters), len(parsed.Spec.WorkflowSpec.Arguments.Parameters))
 	assert.Equal(t, len(cw.Spec.WorkflowSpec.Templates), len(parsed.Spec.WorkflowSpec.Templates))
@@ -359,7 +361,7 @@ func TestYAMLGeneration_FieldOrdering(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 		},
 	}
 
@@ -438,7 +440,7 @@ func TestYAMLGeneration_CleanOutput(t *testing.T) {
 					// creationTimestamp would normally be set here
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 2 * * *",
+					Schedules: []string{"0 2 * * *"},
 				},
 			},
 			expectAbsent: []string{
@@ -460,7 +462,7 @@ func TestYAMLGeneration_CleanOutput(t *testing.T) {
 				"app: test",
 				"annotations:",
 				"description: test workflow",
-				"schedule: 0 2 * * *",
+				"- 0 2 * * *",
 			},
 		},
 	}
@@ -496,7 +498,7 @@ func TestYAMLGeneration_CleanOutput(t *testing.T) {
 			assert.Equal(t, tt.cw.Namespace, parsed.Namespace)
 			assert.Equal(t, tt.cw.Labels, parsed.Labels)
 			assert.Equal(t, tt.cw.Annotations, parsed.Annotations)
-			assert.Equal(t, tt.cw.Spec.Schedule, parsed.Spec.Schedule)
+			assert.Equal(t, tt.cw.Spec.GetScheduleString(), parsed.Spec.GetScheduleString())
 		})
 	}
 }
@@ -513,7 +515,7 @@ func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 		},
 	}
 
@@ -542,7 +544,7 @@ func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
 		"kind: CronWorkflow",
 		"name: comparison-workflow",
 		"namespace: default",
-		"schedule: 0 0 * * *",
+		"- 0 0 * * *",
 	}
 
 	for _, field := range essentialFields {
@@ -559,7 +561,8 @@ func TestYAMLGeneration_CleanVsOriginal(t *testing.T) {
 // 「空構造体ディスクリミネータ」が含まれている場合に、
 // CleanCronWorkflow.ToYAML() の出力にも保持されることを検証します。
 // (回帰テスト: 以前は removeEmptyFields が空マップを一律削除していたため
-//  archive 配下のフィールドが欠落していた)
+//
+//	archive 配下のフィールドが欠落していた)
 func TestYAMLGeneration_ArchiveStrategyPreserved(t *testing.T) {
 	makeCW := func(archive *argoworkflowsv1alpha1.ArchiveStrategy) *argoworkflowsv1alpha1.CronWorkflow {
 		return &argoworkflowsv1alpha1.CronWorkflow{
@@ -572,7 +575,7 @@ func TestYAMLGeneration_ArchiveStrategyPreserved(t *testing.T) {
 				Namespace: "default",
 			},
 			Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-				Schedule: "0 0 * * *",
+				Schedules: []string{"0 0 * * *"},
 				WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
 					Entrypoint: "main",
 					Templates: []argoworkflowsv1alpha1.Template{
@@ -584,8 +587,8 @@ func TestYAMLGeneration_ArchiveStrategyPreserved(t *testing.T) {
 							Outputs: argoworkflowsv1alpha1.Outputs{
 								Artifacts: argoworkflowsv1alpha1.Artifacts{
 									{
-										Name: "out",
-										Path: "/tmp/out.txt",
+										Name:    "out",
+										Path:    "/tmp/out.txt",
 										Archive: archive,
 									},
 								},
@@ -658,7 +661,7 @@ func TestYAMLGeneration_ArchiveAbsentNotEmitted(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{Name: "noarchive", Namespace: "default"},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 			WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
 				Entrypoint: "main",
 				Templates: []argoworkflowsv1alpha1.Template{

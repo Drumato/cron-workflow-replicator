@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+bin
+dist
+output
+temp_output
+tools
+docs
+examples
+test

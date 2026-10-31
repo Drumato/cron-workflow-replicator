@@ -1,5 +1,7 @@
 .PHONY: all
-all: format build test lint
+all: format build test lint vuln
+
+GO_TOOL = go tool -modfile=tools/$(1)/go.mod
 
 .PHONY: format
 format:
@@ -11,7 +13,7 @@ build:
 
 .PHONY: test
 test:
-	go test -v ./...
+	go test -race -v ./...
 
 .PHONY: example
 example: build
@@ -54,3 +56,11 @@ test-examples: build
 .PHONY: lint
 lint:
 	golangci-lint run
+
+.PHONY: vuln
+vuln:
+	$(call GO_TOOL,govulncheck) govulncheck ./...
+
+.PHONY: actionlint
+actionlint:
+	$(call GO_TOOL,actionlint) actionlint

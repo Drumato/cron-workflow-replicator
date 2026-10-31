@@ -4,7 +4,8 @@ metadata:
   name: archive-base
   namespace: default
 spec:
-  schedule: "0 0 * * *"
+  schedules:
+    - "0 0 * * *"
   timezone: "UTC"
   workflowSpec:
     entrypoint: main

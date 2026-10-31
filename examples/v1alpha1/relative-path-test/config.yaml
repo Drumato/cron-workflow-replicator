@@ -11,5 +11,5 @@ units:
             value: "test"
           - path: "$.metadata.labels.environment"
             value: "test"
-          - path: "$.spec.schedule"
-            value: "0 12 * * *"  # Override schedule
+          - path: "$.spec.schedules"
+            value: '["0 12 * * *"]'  # Override schedule

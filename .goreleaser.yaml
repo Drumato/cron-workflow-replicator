@@ -1,0 +1,15 @@
+version: 2
+
+# Archive and checksum names follow the goreleaser defaults that earlier releases used,
+# since downstream tooling downloads assets by those names.
+builds:
+  - env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+changelog:
+  use: github

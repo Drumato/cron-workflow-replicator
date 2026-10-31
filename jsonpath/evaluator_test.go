@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/drumato/cron-workflow-replicator/config"
@@ -56,7 +56,7 @@ func TestPathEvaluator_ApplyPaths(t *testing.T) {
 			},
 			expectErr: false,
 			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
-				assert.Equal(t, "0 0 * * *", cw.Spec.Schedule)
+				assert.Equal(t, "0 0 * * *", cw.Spec.GetScheduleString())
 			},
 		},
 		{
@@ -412,7 +412,7 @@ func TestPathEvaluator_structToMapAndBack(t *testing.T) {
 			},
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 		},
 	}
 
@@ -431,7 +431,7 @@ func TestPathEvaluator_structToMapAndBack(t *testing.T) {
 	assert.Equal(t, original.Name, result.Name)
 	assert.Equal(t, original.Namespace, result.Namespace)
 	assert.Equal(t, original.Labels, result.Labels)
-	assert.Equal(t, original.Spec.Schedule, result.Spec.Schedule)
+	assert.Equal(t, original.Spec.GetScheduleString(), result.Spec.GetScheduleString())
 }
 
 func TestPathEvaluator_convertValue(t *testing.T) {
@@ -861,11 +861,11 @@ func TestPathEvaluator_ErrorHandling(t *testing.T) {
 					Kind:       "CronWorkflow",
 				},
 				Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-					Schedule: "0 0 * * *",
+					Timezone: "UTC",
 				},
 			},
 			paths: []config.PathValue{
-				{Path: "$.spec.schedule[0]", Value: "test"}, // schedule is a string, not an array
+				{Path: "$.spec.timezone[0]", Value: "test"}, // timezone is a string, not an array
 			},
 			expectErr: true,
 			errorMsg:  "is not an array",
@@ -883,7 +883,7 @@ func TestPathEvaluator_ErrorHandling(t *testing.T) {
 			},
 			expectErr: false,
 			validator: func(t *testing.T, cw *argoworkflowsv1alpha1.CronWorkflow) {
-				assert.Equal(t, "[invalid json array", cw.Spec.Schedule)
+				assert.Equal(t, "[invalid json array", cw.Spec.GetScheduleString())
 			},
 		},
 	}

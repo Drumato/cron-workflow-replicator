@@ -23,12 +23,12 @@ To run the CLI in a temporary Docker container:
 
 ```bash
 # For amd64 systems
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 
 # For arm64 systems (Apple Silicon, etc.)
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main-arm \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -40,7 +40,7 @@ The `--rm` flag automatically removes the container after execution, and `-v $(p
 ### Basic Example (No Values)
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/novalue/config.yaml
 ```
@@ -50,7 +50,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Example with Values
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/withvalue/config.yaml
 ```
@@ -60,7 +60,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Example with Base Manifest
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/basemanifest/config.yaml
 ```
@@ -70,7 +70,7 @@ docker run --rm -v $(pwd):/workspace -w /workspace \
 ### Example with Kustomize Integration
 
 ```bash
-docker run --rm -v $(pwd):/workspace -w /workspace \
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)":/workspace -w /workspace \
   ghcr.io/drumato/cron-workflow-replicator:main \
   /cron-workflow-replicator --config examples/v1alpha1/kustomize/config.yaml
 ```
@@ -95,8 +95,8 @@ units:
             value: "backup-service"
           - path: "$.metadata.labels.environment"
             value: "production"
-          - path: "$.spec.schedule"
-            value: "0 2 * * *"  # 2 AM daily
+          - path: "$.spec.schedules"
+            value: '["0 2 * * *"]'  # 2 AM daily
           - path: "$.spec.concurrencyPolicy"
             value: "Forbid"
           - path: "$.spec.successfulJobsHistoryLimit"
@@ -117,8 +117,8 @@ units:
             value: "data-processing-staging"
           - path: "$.metadata.namespace"
             value: "staging"
-          - path: "$.spec.schedule"
-            value: "0 */4 * * *"  # Every 4 hours
+          - path: "$.spec.schedules"
+            value: '["0 */4 * * *"]'  # Every 4 hours
           - path: "$.spec.workflowSpec.arguments.parameters[0].value"
             value: "s3://staging-data-bucket/"
       - filename: "data-processing-production"
@@ -127,8 +127,8 @@ units:
             value: "data-processing-production"
           - path: "$.metadata.namespace"
             value: "production"
-          - path: "$.spec.schedule"
-            value: "0 1 * * *"   # 1 AM daily
+          - path: "$.spec.schedules"
+            value: '["0 1 * * *"]'   # 1 AM daily
           - path: "$.spec.workflowSpec.arguments.parameters[0].value"
             value: "s3://production-data-bucket/"
 ```
@@ -144,8 +144,8 @@ units:
         paths:
           - path: "$.metadata.name"
             value: "weekly-ml-training"
-          - path: "$.spec.schedule"
-            value: "0 0 * * 0"  # Weekly on Sunday
+          - path: "$.spec.schedules"
+            value: '["0 0 * * 0"]'  # Weekly on Sunday
           - path: "$.spec.workflowSpec.templates[0].container.env[0].value"
             value: "production"
           - path: "$.spec.workflowSpec.templates[0].container.resources.requests.memory"

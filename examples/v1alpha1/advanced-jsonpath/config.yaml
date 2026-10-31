@@ -12,8 +12,8 @@ units:
             value: "production"
           - path: "$.metadata.labels.team"
             value: "platform"
-          - path: "$.spec.schedule"
-            value: "0 2 * * *"  # 毎日午前2時に実行
+          - path: "$.spec.schedules"
+            value: '["0 2 * * *"]'  # 毎日午前2時に実行
 
           # 配列操作: 最初のテンプレートの設定
           - path: "$.spec.workflowSpec.templates[0].name"
@@ -54,8 +54,8 @@ units:
             value: "development"
           - path: "$.metadata.labels.team"
             value: "development"
-          - path: "$.spec.schedule"
-            value: "*/5 * * * *"  # 5分毎に実行
+          - path: "$.spec.schedules"
+            value: '["*/5 * * * *"]'  # 5分毎に実行
 
           # 配列拡張: 新しいテンプレートを追加（インデックス3）
           - path: "$.spec.workflowSpec.templates[3].name"

@@ -1,0 +1,21 @@
+# Argo Workflows v4 で削除された単数形の spec.schedule を使い続けている場合の互換動作。
+# - base manifest の spec.schedule は spec.schedules に変換される
+# - value で $.spec.schedule を指定すると、spec.schedules がその値だけで上書きされる
+units:
+  - outputDirectory: "./output"
+    apiVersion: "v1alpha1"
+    baseManifestPath: "./base-manifest.yaml"
+    values:
+      # base manifest の schedule がそのまま spec.schedules になる
+      - filename: "from-base"
+        paths:
+          - path: "$.metadata.name"
+            value: "from-base"
+
+      # value の schedule で上書きする
+      - filename: "override"
+        paths:
+          - path: "$.metadata.name"
+            value: "override"
+          - path: "$.spec.schedule"
+            value: "0 6 * * *"

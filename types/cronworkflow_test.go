@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	argoworkflowsv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -24,7 +24,7 @@ func TestCleanCronWorkflow_ToYAMLWithIndent(t *testing.T) {
 			},
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 			WorkflowSpec: argoworkflowsv1alpha1.WorkflowSpec{
 				Entrypoint: "main",
 			},
@@ -73,7 +73,7 @@ func TestCleanCronWorkflow_ToYAMLWithIndent(t *testing.T) {
 			assert.Contains(t, yamlString, "kind: CronWorkflow")
 			assert.Contains(t, yamlString, "name: test-workflow")
 			assert.Contains(t, yamlString, "namespace: test-namespace")
-			assert.Contains(t, yamlString, "schedule: 0 0 * * *")
+			assert.Contains(t, yamlString, "- 0 0 * * *")
 
 			// Check indentation by looking for nested elements
 			lines := strings.Split(yamlString, "\n")
@@ -104,7 +104,7 @@ func TestCleanCronWorkflow_ToYAML_DefaultIndent(t *testing.T) {
 			Name: "simple-workflow",
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 		},
 	}
 
@@ -126,7 +126,7 @@ func TestCleanCronWorkflow_ToYAML_DefaultIndent(t *testing.T) {
 	assert.Contains(t, yamlString, "apiVersion: argoproj.io/v1alpha1")
 	assert.Contains(t, yamlString, "kind: CronWorkflow")
 	assert.Contains(t, yamlString, "name: simple-workflow")
-	assert.Contains(t, yamlString, "schedule: 0 0 * * *")
+	assert.Contains(t, yamlString, "- 0 0 * * *")
 }
 
 func TestCleanCronWorkflow_ToYAML_EmptyMetadata(t *testing.T) {
@@ -137,7 +137,7 @@ func TestCleanCronWorkflow_ToYAML_EmptyMetadata(t *testing.T) {
 			Kind:       "CronWorkflow",
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 		},
 	}
 
@@ -150,7 +150,7 @@ func TestCleanCronWorkflow_ToYAML_EmptyMetadata(t *testing.T) {
 	// Should have apiVersion and kind
 	assert.Contains(t, yamlString, "apiVersion: argoproj.io/v1alpha1")
 	assert.Contains(t, yamlString, "kind: CronWorkflow")
-	assert.Contains(t, yamlString, "schedule: 0 0 * * *")
+	assert.Contains(t, yamlString, "- 0 0 * * *")
 
 	// Should not have metadata section
 	assert.NotContains(t, yamlString, "metadata:")
@@ -170,7 +170,7 @@ func TestCleanCronWorkflow_ToYAML_CompareIndentSizes(t *testing.T) {
 			},
 		},
 		Spec: argoworkflowsv1alpha1.CronWorkflowSpec{
-			Schedule: "0 0 * * *",
+			Schedules: []string{"0 0 * * *"},
 		},
 	}
 
